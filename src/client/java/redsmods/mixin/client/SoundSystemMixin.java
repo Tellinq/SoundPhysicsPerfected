@@ -1,5 +1,6 @@
 package redsmods.mixin.client;
 
+import redsmods.RaycastingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.sound.*;
 import net.minecraft.util.math.Vec3d;
@@ -14,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
-import redsmods.*;
+import redsmods.RedSoundInstance;
 import redsmods.storageclasses.SoundData;
 import redsmods.wrappers.RedPermeatedSoundInstance;
 import redsmods.wrappers.RedPositionedSoundInstance;
@@ -71,7 +72,7 @@ public abstract class SoundSystemMixin {
 
         try {
             WeightedSoundSet weightedSoundSet = sound.getSoundSet(this.loader); // load pitches and whatnot into the sound data
-            if (!(sound instanceof RedPositionedSoundInstance || sound instanceof RedTickableInstance || sound instanceof RedPermeatedSoundInstance) && sound.getAttenuationType() != SoundInstance.AttenuationType.NONE) { // !replayList.contains(redSoundData)
+            if (!(sound instanceof RedPositionedSoundInstance || sound instanceof TickableSoundInstance || sound instanceof RedPermeatedSoundInstance) && sound.getAttenuationType() != SoundInstance.AttenuationType.NONE) { // !replayList.contains(redSoundData)
                 // Get sound coordinates
                 double soundX = sound.getX();
                 double soundY = sound.getY();
@@ -93,15 +94,6 @@ public abstract class SoundSystemMixin {
                     soundQueue.poll();
                 }
 
-
-                // Get player position for debug message
-//                Vec3d playerPos = client.player.getEyePos();
-//                String coordinates = String.format("(%.2f, %.2f, %.2f)", soundX, soundY, soundZ);
-//                double distance = playerPos.distanceTo(soundPos);
-//                String distanceStr = String.format("%.2fm", distance);
-//                String message = String.format("Sound: %s at %s [%s] - Queued (%d total)",
-//                        soundId, coordinates, distanceStr, soundQueue.size());
-//                client.player.sendMessage(Text.literal(message), true);
                 ci.cancel();
             } else if (ENABLE_PERMEATION && sound instanceof RedPermeatedSoundInstance) {
                 FXQueue.add(sound);
@@ -139,7 +131,6 @@ public abstract class SoundSystemMixin {
                 Source source = accessor.getSource();
                 int id = ((SourceAccessor) source).getPointer();
                 applyMuffleToSource(id,1f);
-                //            System.out.println("Accessor Source: " + id);
             } catch (Exception e) {
                 System.out.println("sourceID is invalid for a sound, non-issue");
             }
@@ -167,7 +158,7 @@ public abstract class SoundSystemMixin {
     @ModifyVariable(method = "stop(Lnet/minecraft/client/sound/SoundInstance;)V", at = @At("HEAD"), argsOnly = true)
     private SoundInstance modifySoundParameter(SoundInstance sound) {
         if (!efxInitialized) return sound; // fx aren't init, most likely permeation isn't playing
-        System.out.println("Stop called for: " + sound.getSound().getLocation());
+        if(sound == null) return sound; // sorry, if some other mod kills their sound by using a mixin, i am not finna be held responsible, that's their own fault.
         soundQueue.remove(sound);
         SoundInstance customSound = soundInstanceMap.get(sound);
         SoundInstance soundPermeation = soundPermInstanceMap.get(sound);
@@ -189,6 +180,53 @@ public abstract class SoundSystemMixin {
     private void onStopAll(CallbackInfo ci) {
         soundQueue.clear();
     }
+
+    private static void cleanupEFXResources() {
+        if (!efxInitialized) return;
+
+        try {
+            System.out.println("Cleaning up EFX resources...");
+
+            // Clear queues and maps
+            FXQueue.clear();
+            FXTickQueue.clear();
+            tickMap.clear();
+
+            // Delete OpenAL EFX objects if they exist
+            if (auxFXSlot != 0) {
+                EXTEfx.alDeleteAuxiliaryEffectSlots(auxFXSlot);
+                auxFXSlot = 0;
+            }
+
+            if (reverbEffect != 0) {
+                EXTEfx.alDeleteEffects(reverbEffect);
+                reverbEffect = 0;
+            }
+
+            if (muffleFilter != 0) {
+                EXTEfx.alDeleteFilters(muffleFilter);
+                muffleFilter = 0;
+            }
+
+            if (sendFilter != 0) {
+                EXTEfx.alDeleteFilters(sendFilter);
+                sendFilter = 0;
+            }
+
+            efxInitialized = false;
+            System.out.println("EFX resources cleaned up successfully");
+
+        } catch (Exception e) {
+            System.err.println("Error cleaning up EFX resources: " + e.getMessage());
+            // Reset everything anyway to prevent issues
+            auxFXSlot = 0;
+            reverbEffect = 0;
+            muffleFilter = 0;
+            sendFilter = 0;
+            efxInitialized = false;
+        }
+    }
+
 
     /**
      * Initialize EFX reverb system once
@@ -382,6 +420,18 @@ public abstract class SoundSystemMixin {
         }
         System.out.println("Sources currently in use: " + sourcesInUse);
     }
+
+    @Inject(method = "stop()V", at = @At("HEAD"))
+    private void onAudioEngineStop(CallbackInfo ci) {
+        cleanupEFXResources();
+    }
+
+    @Inject(method = "start()V", at = @At("TAIL"))
+    private void onAudioEngineStart(CallbackInfo ci) {
+        efxInitialized = false;
+        initializeReverb();
+    }
+
     private static float clamp(float a, float b, float c) {
         return Math.min(Math.max(a,b),c);
     }
