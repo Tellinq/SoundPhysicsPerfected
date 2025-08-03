@@ -390,7 +390,6 @@ public class RaycastingHelper {
             }
 
             if (hitBlock) {
-                outdoorLeakDenom.incrementAndGet();
                 Vec3d hitPos = blockHit.getPos();
                 Direction hitSide = blockHit.getSide();
 
@@ -403,9 +402,9 @@ public class RaycastingHelper {
                 for (SoundData soundEntity : weatherQueue) {
                     double weight;
                     if (ATTENUATION_TYPE == ATTENUATION_TYPE.INVERSE_SQUARE)
-                        weight = 1.0 / (Math.max(totalDistanceTraveled - segmentDistance, 0.1) * Math.max(totalDistanceTraveled - segmentDistance, 0.1));
+                        weight = 1.0 / (Math.max(totalDistanceTraveled - segmentTraveled, 0.1) * Math.max(totalDistanceTraveled - segmentTraveled, 0.1));
                     else
-                        weight = 1.0 / Math.max(totalDistanceTraveled - segmentDistance, 0.1);
+                        weight = 1.0 / Math.max(totalDistanceTraveled - segmentTraveled, 0.1);
 
                     RaycastResult GreenRayResult = new RaycastResult(
                             maxTotalDistance,
@@ -427,9 +426,10 @@ public class RaycastingHelper {
                 currentDirection = reflectedDirection;
                 remainingDistance -= segmentTraveled;
 
-                reverbDenom.incrementAndGet();
                 outdoorLeak.incrementAndGet();
                 outdoorLeakDenom.incrementAndGet();
+
+                return null; // make it so it doesn't continue bouncing bc it just doesn't work currently.
             }
         }
 
@@ -483,6 +483,9 @@ public class RaycastingHelper {
         for (RedTickableInstance soundEntity : tickQueue) {
             Vec3d entityCenter = soundEntity.getOriginalPosition();
             double distanceToEntity = currentPos.distanceTo(entityCenter);
+
+            if (distanceToEntity + currentDistance > 16 * soundEntity.getOriginalVolume())
+                continue;
 
             RaycastContext raycastContext = new RaycastContext(
                     currentPos,
