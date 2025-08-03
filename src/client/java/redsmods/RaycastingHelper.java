@@ -398,6 +398,7 @@ public class RaycastingHelper {
                 currentPos = hitPos.add(reflectedDirection.multiply(0.01));
                 currentDirection = reflectedDirection;
                 remainingDistance -= segmentTraveled;
+                outdoorLeakDenom.incrementAndGet();
             } else {
                 for (SoundData soundEntity : weatherQueue) {
                     double weight;
