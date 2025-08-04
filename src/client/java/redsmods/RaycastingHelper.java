@@ -149,7 +149,7 @@ public class RaycastingHelper {
         if(ENABLE_PERMEATION) {
             for (AveragedSoundData avgData : muffledAveragedResults.values()) {
                 CompletableFuture<Void> task = CompletableFuture.runAsync(() ->
-                                playMuffled(client, avgData, playerEyePos, 0.6f, 1f),
+                                playMuffled(client, avgData, playerEyePos, 1f, 1f),
                         soundProcessingExecutor);
                 soundTasks.add(task);
             }
@@ -254,7 +254,7 @@ public class RaycastingHelper {
                         SoundInstance.createRandom(),                           // Random instance
                         originalSound.isRepeatable(),
                         originalSound.getRepeatDelay(),              // Repeat delay
-                        originalSound.getAttenuationType(),
+                        originalSound.getAttenuationType(),         // attenuation on permeated sounds is linear bc a lot of the time they aren't heard.
                         (float) targetPosition.x,                   // X position
                         (float) targetPosition.y,                   // Y position
                         (float) targetPosition.z,                   // Z position
