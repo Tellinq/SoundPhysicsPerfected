@@ -132,7 +132,7 @@ public class RedTickableInstance implements TickableSoundInstance {
 
     @Override
     public AttenuationType getAttenuationType() {
-        return AttenuationType.LINEAR;
+        return AttenuationType.NONE;
     }
 
     public void stop() {
@@ -151,9 +151,10 @@ public class RedTickableInstance implements TickableSoundInstance {
 
         // Calculate the distance to the target
         double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+        double maxSpeed = 17.15; // m per tick, speed of sound
 
         // If we're already at the target or very close, set position directly
-        if (distance <= 0.001) {
+        if (distance <= 0.001 || distance > maxSpeed * TICK_RATE) {
             x = targetPosition.getX();
             y = targetPosition.getY();
             z = targetPosition.getZ();
@@ -161,7 +162,6 @@ public class RedTickableInstance implements TickableSoundInstance {
         }
 
         // Maximum speed in blocks per tick
-        double maxSpeed = 17.15; // m per tick, speed of sound
 
         // Calculate how far we can move this tick
         double moveDistance = Math.min(maxSpeed, distance);
@@ -185,15 +185,15 @@ public class RedTickableInstance implements TickableSoundInstance {
     public void updateVolume() {
         // Calculate the difference between current and target volume
         float deltaVolume = targetVolume - volume;
+        float maxVolumeChange = 0.05f * TICK_RATE;
 
         // If we're already at the target or very close, set volume directly
-        if (Math.abs(deltaVolume) <= 0.001f) {
+        if (Math.abs(deltaVolume) <= 0.001f || deltaVolume > maxVolumeChange * TICK_RATE) {
             volume = targetVolume;
             return;
         }
 
         // Maximum volume change per tick
-        float maxVolumeChange = 0.05f * TICK_RATE;
 
         // Calculate how much we can change this tick
         float volumeChange = Math.min(maxVolumeChange, Math.abs(deltaVolume));

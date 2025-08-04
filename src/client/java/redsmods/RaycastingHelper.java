@@ -141,7 +141,7 @@ public class RaycastingHelper {
 
         for (AveragedSoundData avgData : averagedResults.values()) {
             CompletableFuture<Void> task = CompletableFuture.runAsync(() ->
-                            playAveragedSoundWithAdjustments(client, avgData, playerEyePos, 1.8f, 1.0f),
+                            playAveragedSoundWithAdjustments(client, avgData, playerEyePos, 1.0f, 1.0f),
                     soundProcessingExecutor);
             soundTasks.add(task);
         }
@@ -177,10 +177,9 @@ public class RaycastingHelper {
             // Get original sound properties
             SoundInstance originalSound = avgData.soundEntity.sound;
             Identifier soundId = originalSound.getId();
-
             if(avgData.totalWeight == 0 && originalSound instanceof RedTickableInstance) {
                 ((RedTickableInstance) originalSound).setVolume(0);
-                ((RedTickableInstance) originalSound).setPos(((RedTickableInstance) originalSound).getOriginalPosition());
+//                ((RedTickableInstance) originalSound).setPos(((RedTickableInstance) originalSound).getOriginalPosition());
                 return;
             }
             // Calculate adjusted volume based on ray count and weight (confidence-based)
@@ -191,7 +190,7 @@ public class RaycastingHelper {
             else
                 baseVolume = ((RedSoundInstance) originalSound).original.getVolume();
 
-            float confidenceMultiplier = (float) Math.min(1.0, Math.log10(avgData.totalWeight + 1.0));
+            float confidenceMultiplier = (float) avgData.totalWeight / (float) RAYS_CAST*MAX_BOUNCES;
             float adjustedVolume = baseVolume * volumeMultiplier * confidenceMultiplier;
 
             // Calculate adjusted pitch
@@ -236,7 +235,7 @@ public class RaycastingHelper {
 
             // Calculate adjusted volume based on ray count and weight (confidence-based)
             float baseVolume = originalSound.getVolume();
-            float confidenceMultiplier = (float) Math.min(1.0, Math.log10(avgData.totalWeight + 1.0));
+            float confidenceMultiplier = (float) avgData.totalWeight / (float) RAYS_CAST*MAX_BOUNCES;
             float adjustedVolume = baseVolume * volumeMultiplier * confidenceMultiplier;
 
             // Calculate adjusted pitch
@@ -356,7 +355,7 @@ public class RaycastingHelper {
             castRedRay(world, player, startPos, soundQueue, totalDistanceTraveled, initialDirection);
 
         for (int bounce = 0; bounce <= MAX_BOUNCES && remainingDistance > 0; bounce++) {
-            double BounceAbsMult = Math.pow(0.7, bounce);
+            double BounceAbsMult = Math.pow(1.2, bounce);
             double segmentDistance = Math.min(RAY_SEGMENT_LENGTH, remainingDistance);
             Vec3d segmentEnd = currentPos.add(currentDirection.multiply(segmentDistance));
 
@@ -482,6 +481,9 @@ public class RaycastingHelper {
 
         // Handle tickable sounds
         for (RedTickableInstance soundEntity : tickQueue) {
+            SoundData data = new TickableSoundData(soundEntity, soundEntity.getOriginalPosition(), soundEntity.getSound().getIdentifier().toString());
+            rayHitsByEntity.computeIfAbsent(data, k -> new CopyOnWriteArrayList<>());
+
             Vec3d entityCenter = soundEntity.getOriginalPosition();
             double distanceToEntity = currentPos.distanceTo(entityCenter);
 
@@ -501,8 +503,6 @@ public class RaycastingHelper {
             boolean hasLineOfSight = blockHit.getType() != HitResult.Type.BLOCK ||
                     currentPos.distanceTo(blockHit.getPos()) >= distanceToEntity - 1;
 
-            SoundData data = new TickableSoundData(soundEntity, soundEntity.getOriginalPosition(), soundEntity.getSound().getIdentifier().toString());
-
             if (hasLineOfSight) {
                 double weight;
                 if (ATTENUATION_TYPE == ATTENUATION_TYPE.INVERSE_SQUARE)
@@ -521,8 +521,6 @@ public class RaycastingHelper {
 
                 rayHitsByEntity.computeIfAbsent(data, k -> new CopyOnWriteArrayList<>()).add(hitData);
                 entityRayHitCounts.merge(data, 1, Integer::sum);
-            } else {
-                rayHitsByEntity.computeIfAbsent(data, k -> new CopyOnWriteArrayList<>());
             }
         }
     }

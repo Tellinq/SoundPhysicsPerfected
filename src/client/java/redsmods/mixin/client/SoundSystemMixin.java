@@ -336,7 +336,6 @@ public abstract class SoundSystemMixin {
      */
     private static void applyReverbToSource(int sourceId) {
         try {
-            System.out.println(getDistanceFromWallEchoDenom() == 0 || getReverbDenom() == 0 || getOutdoorLeakDenom() == 0);
             if (getDistanceFromWallEchoDenom() == 0 || getReverbDenom() == 0 || getOutdoorLeakDenom() == 0)
                 return;
 
@@ -345,8 +344,6 @@ public abstract class SoundSystemMixin {
             occlusionPercent = 1.0f - occlusionPercent;
             float outdoorLeakPercent = (float) RaycastingHelper.getOutdoorLeak() / RaycastingHelper.getOutdoorLeakDenom();
             outdoorLeakPercent = outdoorLeakPercent * 2;
-
-            System.out.println("REVERB DEBUG: " + occlusionPercent +" " + wallDistance + " " + outdoorLeakPercent);
 
             float distanceMeters     = clamp(wallDistance, 1.0f, 100.0f);
             occlusionPercent   = 1 - clamp(occlusionPercent+outdoorLeakPercent, 0.0f, 1.0f);
