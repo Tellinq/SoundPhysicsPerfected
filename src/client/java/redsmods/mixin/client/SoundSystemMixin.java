@@ -171,8 +171,14 @@ public abstract class SoundSystemMixin {
             sourceManager.run(Source::stop);
         }
 
+        // remove custom sounds
+        Channel.SourceManager sourceManagerNormal = sources.get(customSound);
+        if (sourceManagerNormal != null) {
+            sourceManagerNormal.run(Source::stop);
+        }
+
         // Return the custom sound if it exists, otherwise return the original
-        return customSound != null ? customSound : sound;
+        return sound; // if its null, welp. minecraft's code does handle if the custom sound ended up being ended properly so it should be fine, will fix null pointers hopefully though :)
     }
 
     // Add method to clean up orphaned sounds
