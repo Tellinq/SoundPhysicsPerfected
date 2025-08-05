@@ -172,8 +172,14 @@ public abstract class SoundSystemMixin {
             sourceManager.run(Source::stop);
         }
 
+        // remove custom sounds
+        Channel.SourceManager sourceManagerNormal = sources.get(customSound);
+        if (sourceManagerNormal != null) {
+            sourceManagerNormal.run(Source::stop);
+        }
+
         // Return the custom sound if it exists, otherwise return the original
-        return customSound != null ? customSound : sound;
+        return sound; // if its null, welp. minecraft's code does handle if the custom sound ended up being ended properly so it should be fine, will fix null pointers hopefully though :)
     }
 
     // Add method to clean up orphaned sounds
@@ -298,7 +304,7 @@ public abstract class SoundSystemMixin {
      * This is a brute-force approach that works when source tracking is difficult
      */
     private static void updateActiveSources() {
-        // Check if OpenAL context is available'
+        // Check if OpenAL context is available
         long context = ALC10.alcGetCurrentContext();
         if (context == 0) {
             return; // No context available
@@ -329,7 +335,7 @@ public abstract class SoundSystemMixin {
 //                System.out.println(tickQueue.peek().getId());
             }
         } catch (Exception e) {
-            // ignore errors
+            // Ignore errors
         }
     }
     /**
@@ -337,15 +343,14 @@ public abstract class SoundSystemMixin {
      */
     private static void applyReverbToSource(int sourceId) {
         try {
-//            System.out.println(getDistanceFromWallEchoDenom() == 0 || getReverbDenom() == 0 || getOutdoorLeakDenom() == 0);
             if (getDistanceFromWallEchoDenom() == 0 || getReverbDenom() == 0 || getOutdoorLeakDenom() == 0)
                 return;
 
             float wallDistance = (float) (RaycastingHelper.getDistanceFromWallEcho() / RaycastingHelper.getDistanceFromWallEchoDenom());
             float occlusionPercent = (float) RaycastingHelper.getReverbStrength() / RaycastingHelper.getReverbDenom();
+            occlusionPercent = 1.0f - occlusionPercent;
             float outdoorLeakPercent = (float) RaycastingHelper.getOutdoorLeak() / RaycastingHelper.getOutdoorLeakDenom();
-
-//            System.out.println("REVERB DEBUG: " + occlusionPercent +" " + wallDistance + " " + outdoorLeakPercent);
+            outdoorLeakPercent = outdoorLeakPercent * 2;
 
             float distanceMeters     = clamp(wallDistance, 1.0f, 100.0f);
             occlusionPercent   = 1 - clamp(occlusionPercent+outdoorLeakPercent, 0.0f, 1.0f);
@@ -387,8 +392,8 @@ public abstract class SoundSystemMixin {
             alEffectf(reverbEffect, AL_EAXREVERB_LATE_REVERB_DELAY,  lateReverbDelay);
             alEffectf(reverbEffect, AL_EAXREVERB_REFLECTIONS_GAIN,   reflectionsGain);
             alEffectf(reverbEffect, AL_EAXREVERB_LATE_REVERB_GAIN,   lateReverbGain);
-            if (outdoorLeakPercent < 0.95)
-                AL11.alSource3i(sourceId, EXTEfx.AL_AUXILIARY_SEND_FILTER, auxFXSlot, 0, sendFilter);        } catch (Exception e) {
+            AL11.alSource3i(sourceId, EXTEfx.AL_AUXILIARY_SEND_FILTER, auxFXSlot, 0, sendFilter);
+        } catch (Exception e) {
         }
     }
 
@@ -433,7 +438,6 @@ public abstract class SoundSystemMixin {
         efxInitialized = false;
         initializeReverb();
     }
-
 
     private static float clamp(float a, float b, float c) {
         return Math.min(Math.max(a,b),c);
