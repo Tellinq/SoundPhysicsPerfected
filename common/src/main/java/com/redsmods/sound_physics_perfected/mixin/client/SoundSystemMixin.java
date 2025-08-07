@@ -40,8 +40,6 @@ public abstract class SoundSystemMixin {
     private static int muffleFilter = 0;
     private static int sendFilter = 0;
     private static boolean efxInitialized = false;
-
-    private static final Queue<SoundInstance> FXQueue = new LinkedList<>();
     private static final Queue<RedTickableInstance> FXTickQueue = new LinkedList<>();
     private static final Map<Integer, RedTickableInstance> tickMap = new HashMap<>();
 
@@ -96,7 +94,7 @@ public abstract class SoundSystemMixin {
 
                 ci.cancel();
             } else if (ENABLE_PERMEATION && sound instanceof RedPermeatedSoundInstance) {
-                FXQueue.add(sound);
+                FXQueue.add((RedPermeatedSoundInstance) sound);
             } else if (TICK_RATE == 0 && sound instanceof RedTickableInstance) {
                 FXTickQueue.add((RedTickableInstance) sound);
             }
@@ -125,14 +123,15 @@ public abstract class SoundSystemMixin {
         }
         while(!FXQueue.isEmpty()) {
             try {
-                SoundInstance sound = FXQueue.poll();
+                RedPermeatedSoundInstance sound = FXQueue.poll();
                 Channel.SourceManager manager = sources.get(sound);
                 SourceManagerAccessor accessor = (SourceManagerAccessor) manager;
                 Source source = accessor.getSource();
                 int id = ((SourceAccessor) source).getPointer();
-                applyMuffleToSource(id,1f);
+                sound.setSource(id);
+                sound.applyMuffleToSource(id,sound.getPermeationIndex());
             } catch (Exception e) {
-                System.out.println("sourceID is invalid for a sound, non-issue");
+                System.out.println("sourceID is invalid for a sound, non-issue" + e);
             }
         }
 
@@ -161,7 +160,9 @@ public abstract class SoundSystemMixin {
         if(sound == null) return sound; // sorry, if some other mod kills their sound by using a mixin, i am not finna be held responsible, that's their own fault.
         soundQueue.remove(sound);
         SoundInstance customSound = soundInstanceMap.get(sound);
-        SoundInstance soundPermeation = soundPermInstanceMap.get(sound);
+        RedPermeatedSoundInstance soundPermeation = soundPermInstanceMap.get(sound);
+        if (soundPermeation != null)
+            soundPermeation.setDone(true);
         soundInstanceMap.remove(sound);
         soundPermInstanceMap.remove(sound);
 
@@ -261,6 +262,7 @@ public abstract class SoundSystemMixin {
 
             muffleFilter = EXTEfx.alGenFilters();
             EXTEfx.alFilteri(muffleFilter, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
+            RedPermeatedSoundInstance.muffleFilter = muffleFilter;
 
             // Create send filter
             sendFilter = EXTEfx.alGenFilters();
@@ -358,27 +360,64 @@ public abstract class SoundSystemMixin {
             float dryFactor = 1.0f - outdoorLeakPercent; // 0 = fully outdoor, 1 = fully indoor
             float speedOfSound = 343.0f;
 
+            // ==== PHYSICS-BASED CHANGES ====
+
+            // 1. Volume-based decay time with Sabine formula
+            float distanceAttenuation = 1.0f / (1.0f + (distanceMeters - 1.0f) * 0.01f);
+            float volumeEstimate = distanceMeters * distanceMeters * distanceMeters; // Cubic relationship for room volume
+            float surfaceArea = 6.0f * distanceMeters * distanceMeters; // Approximate surface area for cube
+
+            // Sabine RT60 formula: RT60 = 0.161 * V / A (where A = surface_area * absorption_coefficient)
+            float materialAbsorption = lerp(0.25f, 0.05f, dryFactor); // Outdoor = more absorption, Indoor = less
+            float totalAbsorption = surfaceArea * materialAbsorption;
+            float salineRT60 = 0.161f * volumeEstimate / Math.max(totalAbsorption, 0.1f); // Prevent division by zero
+            float decayTime = clamp(salineRT60 * dryFactor, 0.1f, 8.0f);
+
+            // 2. Air absorption - high frequencies attenuate over distance
+            float airAbsorptionCoeff = 1.0f - (distanceMeters * 0.002f); // 0.2% loss per meter
+            airAbsorptionCoeff = clamp(airAbsorptionCoeff, 0.3f, 1.0f);
+
+            // 3. Early reflection timing based on actual sound travel time
             float wallDelay = (distanceMeters * 2.0f) / speedOfSound;
+            float earlyReflectionDelay = clamp(distanceMeters / speedOfSound, 0.001f, 0.03f);
+            float lateReverbBuildupTime = clamp(distanceMeters * 1.5f / speedOfSound, 0.01f, 0.08f);
 
-            float decayTime        = clamp(wallDelay * 5.0f * dryFactor, 0.1f, 6.0f);
-            float reflectionsDelay = clamp(wallDelay * 0.5f, 0.005f, 0.05f);
-            float lateReverbDelay  = clamp(wallDelay, 0.01f, 0.1f);
+            // Frequency-dependent absorption (high frequencies die faster in large spaces)
+            float airAbsorption = 1.0f - (distanceMeters * 0.001f); // Air absorbs highs over distance
+            float decayHfRatio = clamp(lerp(0.3f, 1.0f, (1.0f - occlusionPercent) * dryFactor * airAbsorption), 0.1f, 2.0f);
 
-            float decayHfRatio     = lerp(0.5f, 1.3f, (1.0f - occlusionPercent) * dryFactor);
-            float diffusion        = lerp(0.3f, 1.0f, dryFactor * (1.0f - occlusionPercent));
-            float gainHF           = lerp(0.05f, 0.9f, (1.0f - occlusionPercent) * dryFactor);
+            // Pre-delay based on room size (sound takes time to build up in large spaces)
+            float reflectionsDelay = clamp(earlyReflectionDelay * 0.3f, 0.005f, 0.03f);
+            float lateReverbDelay = clamp(earlyReflectionDelay * 1.5f, 0.01f, 0.08f);
 
-            float reflectionsGain  = lerp(0.0f, 0.7f, dryFactor);
-            float lateReverbGain   = lerp(0.0f, 1.0f, dryFactor);
+            // Diffusion: small rooms = more focused, large rooms = more diffuse
+            float sizeFactor = clamp(distanceMeters / 20.0f, 0.0f, 1.0f);
+            float diffusion = lerp(0.4f, 0.95f, sizeFactor * dryFactor * (1.0f - occlusionPercent));
 
-            float density          = lerp(0.3f, 1.0f, dryFactor);
-            float gain             = lerp(0.05f, 0.3f, dryFactor);
-            float airAbsorptionHF  = lerp(0.95f, 0.99f, dryFactor);
-            float roomRolloff      = 0.4f;
+            // High frequency rolloff (realistic material and air absorption)
+            float gainHF = lerp(0.1f, 0.8f, (1.0f - occlusionPercent) * dryFactor * airAbsorption);
+
+            // Distance and size-based gain adjustments
+            float sizeGainReduction = 1.0f / (1.0f + sizeFactor * 0.3f); // Large rooms spread energy
+            float reflectionsGain = lerp(0.0f, 0.6f, dryFactor * distanceAttenuation * sizeGainReduction);
+            float lateReverbGain = lerp(0.0f, 0.8f, dryFactor * distanceAttenuation * sizeGainReduction);
+
+            // Density: packed reflections in small rooms, sparse in large rooms
+            float density = lerp(0.8f, 0.4f, sizeFactor) * dryFactor;
+
+            // Overall gain with realistic distance falloff
+            float gain = lerp(0.02f, 0.25f, dryFactor * distanceAttenuation * sizeGainReduction);
+
+            // Enhanced air absorption for realism
+            float airAbsorptionHF = lerp(0.92f, 0.99f, dryFactor) * airAbsorption;
+
+            // Room rolloff: larger rooms have more gradual rolloff
+            float roomRolloff = lerp(0.6f, 0.2f, sizeFactor);
 
             // Apply to OpenAL effect
             EXTEfx.alFilterf(sendFilter, EXTEfx.AL_LOWPASS_GAIN, gain);
-            EXTEfx.alFilterf(sendFilter, EXTEfx.AL_LOWPASS_GAINHF, 1.0f);
+            EXTEfx.alFilterf(sendFilter, EXTEfx.AL_LOWPASS_GAINHF, gainHF * 0.8f); // More realistic HF filtering
+
             alEffectf(reverbEffect, AL_EAXREVERB_DENSITY,                density);
             alEffectf(reverbEffect, AL_EAXREVERB_GAIN,                   gain);
             alEffectf(reverbEffect, AL_EAXREVERB_AIR_ABSORPTION_GAINHF,  airAbsorptionHF);
@@ -393,27 +432,6 @@ public abstract class SoundSystemMixin {
             alEffectf(reverbEffect, AL_EAXREVERB_LATE_REVERB_GAIN,   lateReverbGain);
             AL11.alSource3i(sourceId, EXTEfx.AL_AUXILIARY_SEND_FILTER, auxFXSlot, 0, sendFilter);
         } catch (Exception e) {
-        }
-    }
-
-    private static void applyMuffleToSource(int sourceId, float muffleStrength) {
-        try {
-            // Clamp muffle strength between 0.0 (no muffling) and 1.0 (maximum muffling)
-            muffleStrength = clamp(muffleStrength, 0.0f, 1.0f);
-
-            // Calculate filter parameters based on muffle strength
-            float lowpassGain = lerp(1.0f, 0.2f, muffleStrength);     // Overall volume reduction
-            float lowpassGainHF = lerp(1.0f, 0.1f, muffleStrength);   // High frequency attenuation
-
-            // Apply low-pass filter (main muffling effect)
-            if (muffleFilter != -1) {
-                EXTEfx.alFilterf(muffleFilter, EXTEfx.AL_LOWPASS_GAIN, lowpassGain);
-                EXTEfx.alFilterf(muffleFilter, EXTEfx.AL_LOWPASS_GAINHF, lowpassGainHF);
-                AL11.alSourcei(sourceId, EXTEfx.AL_DIRECT_FILTER, muffleFilter);
-            }
-
-        } catch (Exception e) {
-            // Handle errors silently like the original function
         }
     }
 
