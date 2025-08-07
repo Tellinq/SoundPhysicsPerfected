@@ -11,4 +11,4 @@ rootProject.name = 'sound_physics_perfected'
 
 include 'common'
 include 'fabric'
-include 'neoforge'
+//include 'neoforge'
