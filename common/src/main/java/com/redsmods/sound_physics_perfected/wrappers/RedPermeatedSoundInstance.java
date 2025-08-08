@@ -12,7 +12,7 @@ import org.lwjgl.openal.AL11;
 import org.lwjgl.openal.EXTEfx;
 
 import static com.redsmods.sound_physics_perfected.RaycastingHelper.TICK_RATE;
-import static java.lang.Math.clamp;
+import static net.minecraft.util.math.MathHelper.clamp;
 import static org.joml.Math.lerp;
 
 public class RedPermeatedSoundInstance extends RedTickableInstance {
