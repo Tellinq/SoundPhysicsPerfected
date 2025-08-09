@@ -95,10 +95,10 @@ public abstract class SoundSystemMixin {
 
                 cir.cancel();
             } else if (ENABLE_PERMEATION && sound instanceof RedPermeatedSoundInstance) {
-                System.out.println(sound);
+//                System.out.println(sound);
                 FXQueue.add((RedPermeatedSoundInstance) sound);
             } else {
-                System.out.println(sound);
+//                System.out.println(sound);
             }
         } catch (Exception e) {
             // Log error but don't crash
