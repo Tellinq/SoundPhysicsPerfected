@@ -1,15 +1,15 @@
 package com.redsmods.sound_physics_perfected.mixin.client;
 
-import net.minecraft.client.sound.Source;
+import com.mojang.blaze3d.audio.Channel;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(Source.class)
+@Mixin(Channel.class)
 public interface SourceAccessor {
     /**
      * Accessor for the private `sources` map in SourceManager,
      * which maps SoundInstance → Channel.
      */
-    @Accessor("pointer")
-    int getPointer();
+    @Accessor("source")
+    int getSource();
 }

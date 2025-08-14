@@ -129,22 +129,22 @@ dependencies {
 //            mappings(rootProject.file("mappings/fix.tiny"))
 //    })
 
-    @Suppress("UnstableApiUsage")
-    mappings(loom.layered {
-        mappings("net.fabricmc:yarn:${deps.yarn_mappings}:v2")
-        if (!"${deps.yarn_mappings_patch_neoforge_version}".contains("VERSIONED")) {
-            mappings("dev.architectury:yarn-mappings-patch-neoforge:${deps.yarn_mappings_patch_neoforge_version}")
-        }
-    })
+//    @Suppress("UnstableApiUsage")
 //    mappings(loom.layered {
-//        // Mojmap mappings
-//        officialMojangMappings()
-//
-//        // Parchment mappings (it adds parameter mappings & javadoc)
-//        optionalProp("deps.parchment_version") {
-//            parchment("org.parchmentmc.data:parchment-${mc.version}:$it@zip")
+//        mappings("net.fabricmc:yarn:${deps.yarn_mappings}:v2")
+//        if (!"${deps.yarn_mappings_patch_neoforge_version}".contains("VERSIONED")) {
+//            mappings("dev.architectury:yarn-mappings-patch-neoforge:${deps.yarn_mappings_patch_neoforge_version}")
 //        }
 //    })
+    mappings(loom.layered {
+        // Mojmap mappings
+        officialMojangMappings()
+
+        // Parchment mappings (it adds parameter mappings & javadoc)
+        optionalProp("deps.parchment_version") {
+            parchment("org.parchmentmc.data:parchment-${mc.version}:$it@zip")
+        }
+    })
 
     modRuntimeOnly("me.djtheredstoner:DevAuth-${loader.loader}:${deps.devauthVersion}")
     include(implementation("com.moulberry:mixinconstraints:${deps.mixinconstraintsVersion}")!!)!!

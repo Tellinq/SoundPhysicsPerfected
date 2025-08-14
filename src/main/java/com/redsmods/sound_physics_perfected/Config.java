@@ -3,10 +3,7 @@ package com.redsmods.sound_physics_perfected;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.redsmods.sound_physics_perfected.ReverbHelpers.ReverbConstants;
-//? if fabric
-import net.fabricmc.loader.api.FabricLoader;
-//? if neoforge
-/*import net.neoforged.fml.loading.FMLPaths;*/
+import dev.isxander.yacl3.platform.YACLPlatform;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,10 +14,7 @@ public class Config {
     private static Config INSTANCE;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    //? if fabric
-    private static final Path CONFIG_FILE = FabricLoader.getInstance().getConfigDir().resolve("SoundPhysicsPerfected.json");
-    //? if neoforge
-    /*private static final Path CONFIG_FILE = FMLPaths.CONFIGDIR.get().resolve("SoundPhysicsPerfected.json");*/
+    private static final Path CONFIG_FILE = YACLPlatform.getConfigDir().resolve("SoundPhysicsPerfected.json");
 
     // Original settings
     public int raysCast = 1000;

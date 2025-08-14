@@ -1,5 +1,6 @@
 package com.redsmods.sound_physics_perfected.mixin.client;
 
+import com.mojang.blaze3d.audio.Channel;
 import com.redsmods.sound_physics_perfected.RaycastingHelper;
 import com.redsmods.sound_physics_perfected.RedSoundInstance;
 import com.redsmods.sound_physics_perfected.ReverbHelpers.EnhancedReverbData;
@@ -8,9 +9,14 @@ import com.redsmods.sound_physics_perfected.storageclasses.SoundData;
 import com.redsmods.sound_physics_perfected.wrappers.RedPermeatedSoundInstance;
 import com.redsmods.sound_physics_perfected.wrappers.RedPositionedSoundInstance;
 import com.redsmods.sound_physics_perfected.wrappers.RedTickableInstance;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.*;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.client.resources.sounds.TickableSoundInstance;
+import net.minecraft.client.sounds.ChannelAccess;
+import net.minecraft.client.sounds.SoundEngine;
+import net.minecraft.client.sounds.SoundManager;
+import net.minecraft.client.sounds.WeighedSoundEvents;
+import net.minecraft.world.phys.Vec3;
 import org.lwjgl.openal.AL10;
 import org.lwjgl.openal.AL11;
 import org.lwjgl.openal.ALC10;
@@ -26,15 +32,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Map;
-import java.util.Queue;
 
 import static com.redsmods.sound_physics_perfected.RaycastingHelper.*;
 import static org.joml.Math.lerp;
 import static org.lwjgl.openal.EXTEfx.*;
 
-@Mixin(SoundSystem.class)
+@Mixin(SoundEngine.class)
 public abstract class SoundSystemMixin {
 
     private static final int MAX_SOUNDS = 100; // Limit queue size to prevent memory issues
@@ -48,27 +52,22 @@ public abstract class SoundSystemMixin {
 
 
     @Shadow
-    private SoundManager /*? if >= 1.21.6 {*/ soundManager /*?} else {*/ /*loader *//*?}*/;
+    private SoundManager soundManager;
     @Shadow
-    private Map<SoundInstance, Channel.SourceManager> sources;
+    private Map<SoundInstance, ChannelAccess.ChannelHandle> instanceToChannel;
 
 //    @Shadow @Final private SoundEngine soundEngine;
 
-    @Shadow public abstract void stop();
+    @Shadow public abstract void destroy();
 
     @Shadow public abstract void tick(boolean paused);
 
-    @Unique
-    public SoundManager getSoundManagerRef() {
-        return /*? if >= 1.21.6 {*/ this.soundManager /*?} else {*/ /*this.loader *//*?}*/;
-    }
-
     //? if <1.21.6 {
-    /*@Inject(method = "play(Lnet/minecraft/client/sound/SoundInstance;)V", at = @At("HEAD"), cancellable = true)
+    /*@Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At("HEAD"), cancellable = true)
     private void onSoundPlay(SoundInstance sound, CallbackInfo ci) {
     *///?} else {
-    @Inject(method = "play(Lnet/minecraft/client/sound/SoundInstance;)Lnet/minecraft/client/sound/SoundSystem$PlayResult;", at = @At("HEAD"), cancellable = true)
-    private void onSoundPlay(SoundInstance sound, CallbackInfoReturnable<SoundSystem.PlayResult> cir) {
+    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)Lnet/minecraft/client/sounds/SoundEngine$PlayResult;", at = @At("HEAD"), cancellable = true)
+    private void onSoundPlay(SoundInstance sound, CallbackInfoReturnable<SoundEngine.PlayResult> cir) {
      //?}
         if (!efxInitialized) {
             initializeReverb();
@@ -76,23 +75,23 @@ public abstract class SoundSystemMixin {
 
         if (!efxInitialized) return; // Skip if initialization failed
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         // Add null checks
-        if (client == null || client.player == null || client.world == null || sound == null || this.getSoundManagerRef() == null) {
+        if (client == null || client.player == null || client.level == null || sound == null || soundManager == null) {
             return;
         }
 
         try {
-            WeightedSoundSet weightedSoundSet = sound.getSoundSet(this.getSoundManagerRef()); // load pitches and whatnot into the sound data
-            if (!(sound instanceof RedPositionedSoundInstance || sound instanceof TickableSoundInstance || sound instanceof RedPermeatedSoundInstance) && sound.getAttenuationType() != SoundInstance.AttenuationType.NONE) { // !replayList.contains(redSoundData)
+            WeighedSoundEvents weightedSoundSet = sound.resolve(soundManager); // load pitches and whatnot into the sound data
+            if (!(sound instanceof RedPositionedSoundInstance || sound instanceof TickableSoundInstance || sound instanceof RedPermeatedSoundInstance) && sound.getAttenuation() != SoundInstance.Attenuation.NONE) { // !replayList.contains(redSoundData)
                 // Get sound coordinates
                 double soundX = sound.getX();
                 double soundY = sound.getY();
                 double soundZ = sound.getZ();
-                Vec3d soundPos = new Vec3d(soundX, soundY, soundZ);
+                Vec3 soundPos = new Vec3(soundX, soundY, soundZ);
 
                 // Get sound ID
-                String soundId = sound.getId().toString();
+                String soundId = sound.getLocation().toString();
 
                 // Create sound data object
                 RedSoundInstance redSoundData = new RedSoundInstance(sound);
@@ -122,7 +121,10 @@ public abstract class SoundSystemMixin {
     @Inject(
             method = "tick(Z)V",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/client/sound/SoundSystem;tick()V",
+                    //? if >=1.21.6
+                    target = "Lnet/minecraft/client/sounds/SoundEngine;tickInGameSound()V",
+                    //? if <1.21.6
+                    /*target = "Lnet/minecraft/client/sounds/SoundEngine;tickNonPaused()V",*/
                     shift = At.Shift.AFTER),
             locals = LocalCapture.CAPTURE_FAILHARD
     )
@@ -139,10 +141,10 @@ public abstract class SoundSystemMixin {
         while(!FXQueue.isEmpty()) {
             try {
                 RedPermeatedSoundInstance sound = FXQueue.poll();
-                Channel.SourceManager manager = sources.get(sound);
+                ChannelAccess.ChannelHandle manager = instanceToChannel.get(sound);
                 SourceManagerAccessor accessor = (SourceManagerAccessor) manager;
-                Source source = accessor.getSource();
-                int id = ((SourceAccessor) source).getPointer();
+                Channel source = accessor.getChannel();
+                int id = ((SourceAccessor) source).getSource();
                 sound.setSource(id);
                 sound.applyMuffleToSource(id,sound.getPermeationIndex());
             } catch (Exception e) {
@@ -154,7 +156,7 @@ public abstract class SoundSystemMixin {
             updateActiveSources(); // Brute force reverb to ALL sounds
     }
 
-    @ModifyVariable(method = "stop(Lnet/minecraft/client/sound/SoundInstance;)V", at = @At("HEAD"), argsOnly = true)
+    @ModifyVariable(method = "stop(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At("HEAD"), argsOnly = true)
     private SoundInstance modifySoundParameter(SoundInstance sound) {
         if (!efxInitialized) return sound; // fx aren't init, most likely permeation isn't playing
         if(sound == null) return sound; // sorry, if some other mod kills their sound by using a mixin, i am not finna be held responsible, that's their own fault.
@@ -162,20 +164,20 @@ public abstract class SoundSystemMixin {
         SoundInstance customSound = soundInstanceMap.get(sound);
         RedPermeatedSoundInstance soundPermeation = soundPermInstanceMap.get(sound);
         if (soundPermeation != null)
-            soundPermeation.setDone(true);
+            soundPermeation.setStopped(true);
         soundInstanceMap.remove(sound);
         soundPermInstanceMap.remove(sound);
 
         // remove the permeation manually before using the default stop method
-        Channel.SourceManager sourceManager = sources.get(soundPermeation);
+        ChannelAccess.ChannelHandle sourceManager = instanceToChannel.get(soundPermeation);
         if (sourceManager != null) {
-            sourceManager.run(Source::stop);
+            sourceManager.execute(Channel::stop);
         }
 
         // remove custom sounds
-        Channel.SourceManager sourceManagerNormal = sources.get(customSound);
+        ChannelAccess.ChannelHandle sourceManagerNormal = instanceToChannel.get(customSound);
         if (sourceManagerNormal != null) {
-            sourceManagerNormal.run(Source::stop);
+            sourceManagerNormal.execute(Channel::stop);
         }
 
         // Return the custom sound if it exists, otherwise return the original
@@ -504,12 +506,12 @@ public abstract class SoundSystemMixin {
         System.out.println("Sources currently in use: " + sourcesInUse);
     }
 
-    @Inject(method = "stop()V", at = @At("HEAD"))
+    @Inject(method = "destroy()V", at = @At("HEAD"))
     private void onAudioEngineStop(CallbackInfo ci) {
         cleanupEFXResources();
     }
 
-    @Inject(method = "start()V", at = @At("TAIL"))
+    @Inject(method = "loadLibrary()V", at = @At("TAIL"))
     private void onAudioEngineStart(CallbackInfo ci) {
         efxInitialized = false;
         initializeReverb();

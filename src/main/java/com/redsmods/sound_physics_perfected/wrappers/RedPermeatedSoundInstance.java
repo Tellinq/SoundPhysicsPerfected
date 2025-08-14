@@ -1,11 +1,11 @@
 package com.redsmods.sound_physics_perfected.wrappers;
 
 import com.redsmods.sound_physics_perfected.RaycastingHelper;
-import net.minecraft.client.sound.Sound;
-import net.minecraft.client.sound.SoundInstance;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.resources.sounds.Sound;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.phys.Vec3;
 import org.lwjgl.openal.AL10;
 import org.lwjgl.openal.AL11;
 import org.lwjgl.openal.EXTEfx;
@@ -21,7 +21,7 @@ public class RedPermeatedSoundInstance extends RedTickableInstance {
     private boolean sourceSet = false;
     private float targetMuffle;
 
-    public RedPermeatedSoundInstance(Identifier soundID, Sound sound, SoundCategory category, Vec3d position, float volume, float pitch, SoundInstance wrapped, Vec3d originalPos, float originalVolume,float permeationIndex) {
+    public RedPermeatedSoundInstance(ResourceLocation soundID, Sound sound, SoundSource category, Vec3 position, float volume, float pitch, SoundInstance wrapped, Vec3 originalPos, float originalVolume, float permeationIndex) {
         super(soundID, sound, category,position, volume, pitch, wrapped, originalPos, originalVolume);
         this.permeationIndex = permeationIndex;
 
@@ -32,14 +32,14 @@ public class RedPermeatedSoundInstance extends RedTickableInstance {
     }
 
     public void setPermeationIndex(float permeationIndex) {
-        if (super.isDone()) return;
+        if (super.isStopped()) return;
         this.targetMuffle = permeationIndex;
     }
 
     @Override
     public void tick() {
         tickCount++;
-        if (super.isDone() || TICK_RATE == 0) return; // DONE or ticking sounds is off
+        if (super.isStopped() || TICK_RATE == 0) return; // DONE or ticking sounds is off
         if (tickCount % TICK_RATE == 0) { // only update once every .1 second
             RaycastingHelper.permeatedTickQueue.add(this);
         }

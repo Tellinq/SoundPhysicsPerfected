@@ -8,7 +8,7 @@ import dev.isxander.yacl3.config.v2.api.autogen.CustomName;
 import dev.isxander.yacl3.config.v2.api.autogen.MasterTickBox;
 import dev.isxander.yacl3.config.v2.api.serializer.GsonConfigSerializerBuilder;
 import dev.isxander.yacl3.platform.YACLPlatform;
-import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.Nullable;
 
 public class Config {
