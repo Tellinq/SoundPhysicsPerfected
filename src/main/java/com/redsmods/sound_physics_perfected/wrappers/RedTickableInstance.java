@@ -53,7 +53,10 @@ public class RedTickableInstance implements TickableSoundInstance {
     public void tick() {
         tickCount++;
         if (stopped || TICK_RATE == 0) return; // DONE or ticking sounds is off
-        if (tickCount % TICK_RATE == 0) // only update once every .1 second
+        if (!this.location.toString().contains("rain")) {
+            if(tickCount % Math.max(TICK_RATE,8) == 0) // no way I shouldn't be having nesting like this oh noes.
+                RaycastingHelper.tickQueue.add(this);
+        } else if (tickCount % TICK_RATE == 0) // only update once every .1 second
             RaycastingHelper.tickQueue.add(this);
         if (wrapped instanceof TickableSoundInstance)
             ((TickableSoundInstance) wrapped).tick();
@@ -105,9 +108,7 @@ public class RedTickableInstance implements TickableSoundInstance {
     }
 
     public void setVolume(float targetVolume) {
-        if (!this.location.toString().contains("rain")) {
-            this.targetVolume = targetVolume;
-        }
+        this.targetVolume = targetVolume;
     }
     public void updateVolume() {
         // Calculate the difference between current and target volume

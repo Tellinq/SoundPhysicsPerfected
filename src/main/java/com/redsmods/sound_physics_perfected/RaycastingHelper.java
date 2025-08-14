@@ -207,12 +207,8 @@ public class RaycastingHelper {
 
         try {
             // Calculate the target position
-            Vec3 targetPosition;
-            if (avgData.soundEntity.soundId.contains("rain")) { // if outdoors and raining, make the rain sound play on the player to make it sound like its all around the player && ((double) outdoorLeak / outdoorLeakDenom) > 0.4
-                targetPosition = playerPos.add(avgData.averageDirection.scale(5));
-            } else {
-                targetPosition = playerPos.add(avgData.averageDirection.scale(avgData.averageDistance));
-            }
+            Vec3 targetPosition = playerPos.add(avgData.averageDirection.scale(avgData.averageDistance));
+
             // Get original sound properties
             SoundInstance originalSound = avgData.soundEntity.sound;
             ResourceLocation soundId = originalSound.getLocation();
@@ -230,6 +226,8 @@ public class RaycastingHelper {
                 baseVolume = ((RedSoundInstance) originalSound).original.getVolume();
 
             float confidenceMultiplier = (float) avgData.totalWeight / (float) RAYS_CAST*MAX_BOUNCES;
+            confidenceMultiplier = Math.min(confidenceMultiplier,1.0f); // make it so it never makes the sound louder lol
+
             float adjustedVolume = baseVolume * volumeMultiplier * confidenceMultiplier;
 
             // Calculate adjusted pitch
@@ -412,9 +410,15 @@ public class RaycastingHelper {
             totalDistanceTraveled += segmentTraveled;
 
             if (hitBlock) {
-                if (ENABLE_REVERB)
-                    castBlueRay(world, player, actualEnd, soundQueue, totalDistanceTraveled, initialDirection,bounce);
-                if (ENABLE_PERMEATION && bounce < 2) // only first 2 bounces cast permeating rays
+                if (ENABLE_REVERB) {
+                    BlueRayResult blueRayResult = castBlueRay(world, player, actualEnd, soundQueue, totalDistanceTraveled, initialDirection, bounce);
+                    if (blueRayResult.arrived) { // cast blue ray and if it makes it back to the player
+                        // make it update that as initial direction + set totalDistance
+                        initialDirection = blueRayResult.directionFromPlayer;
+                        totalDistanceTraveled = blueRayResult.distance;
+                    }
+                }
+                if (ENABLE_PERMEATION)
                     castRedRay(world, player, actualEnd, soundQueue, totalDistanceTraveled, initialDirection);
                 castGreenRay(world, player, actualEnd, soundQueue, totalDistanceTraveled, initialDirection);
             }
@@ -554,7 +558,7 @@ public class RaycastingHelper {
         }
     }
 
-    private static boolean castBlueRay(Level world, Player player, Vec3 currentPos,
+    private static BlueRayResult castBlueRay(Level world, Player player, Vec3 currentPos,
                                                Queue<SoundData> entities, double currentDistance,
                                                Vec3 initialDirection, int bounceNumber) {
         Vec3 entityCenter = player.getBoundingBox().getCenter();
@@ -597,15 +601,17 @@ public class RaycastingHelper {
 
             // Calculate reflection angle for more accurate reverb
             Vec3 toPlayer = entityCenter.subtract(currentPos).normalize();
+            Vec3 playerToAdjustedPos = adjustedPos.subtract(entityCenter);
             Vec3 reflectionAngle = initialDirection.subtract(toPlayer);
             double angleDeviation = Math.abs(reflectionAngle.length());
 
             // Weight reverb by reflection quality (direct vs scattered)
             double reflectionQuality = Math.max(0.1, 1.0 - angleDeviation);
             weightedReverbStrength.updateAndGet(current -> current + reflectionQuality);
+            return new BlueRayResult(true, playerToAdjustedPos, entityCenter.distanceTo(adjustedPos));
         }
 
-        return hasLineOfSight;
+        return new BlueRayResult(false,null, -1);
     }
 
     private static void analyzeSurfaceAtPosition(Level world, Vec3 pos, double distance, boolean hasLineOfSight) {
