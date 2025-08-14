@@ -1,6 +1,7 @@
 package com.redsmods.sound_physics_perfected.wrappers;
 
 import com.redsmods.sound_physics_perfected.RaycastingHelper;
+import com.redsmods.sound_physics_perfected.config.Config;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Delegate;
@@ -10,8 +11,6 @@ import net.minecraft.client.resources.sounds.TickableSoundInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.phys.Vec3;
-
-import static com.redsmods.sound_physics_perfected.RaycastingHelper.TICK_RATE;
 
 @Getter
 public class RedTickableInstance implements TickableSoundInstance {
@@ -52,11 +51,11 @@ public class RedTickableInstance implements TickableSoundInstance {
     @Override
     public void tick() {
         tickCount++;
-        if (stopped || TICK_RATE == 0) return; // DONE or ticking sounds is off
+        if (stopped || Config.getInstance().tickRate == 0) return; // DONE or ticking sounds is off
         if (!this.location.toString().contains("rain")) {
-            if(tickCount % Math.max(TICK_RATE,8) == 0) // no way I shouldn't be having nesting like this oh noes.
+            if(tickCount % Math.max(Config.getInstance().tickRate, 8) == 0) // no way I shouldn't be having nesting like this oh noes.
                 RaycastingHelper.tickQueue.add(this);
-        } else if (tickCount % TICK_RATE == 0) // only update once every .1 second
+        } else if (tickCount % Config.getInstance().tickRate == 0) // only update once every .1 second
             RaycastingHelper.tickQueue.add(this);
         if (wrapped instanceof TickableSoundInstance)
             ((TickableSoundInstance) wrapped).tick();
@@ -84,7 +83,7 @@ public class RedTickableInstance implements TickableSoundInstance {
         double maxSpeed = 17.15; // m per tick, speed of sound
 
         // If we're already at the target or very close, set position directly
-        if (distance <= 0.001 || distance > maxSpeed * TICK_RATE) {
+        if (distance <= 0.001 || distance > maxSpeed * Config.getInstance().tickRate) {
             x = targetPosition.x();
             y = targetPosition.y();
             z = targetPosition.z();
@@ -113,10 +112,10 @@ public class RedTickableInstance implements TickableSoundInstance {
     public void updateVolume() {
         // Calculate the difference between current and target volume
         float deltaVolume = targetVolume - volume;
-        float maxVolumeChange = Math.abs(deltaVolume / TICK_RATE);
+        float maxVolumeChange = Math.abs(deltaVolume / Config.getInstance().tickRate);
 
         // If we're already at the target or very close, set volume directly
-        if (Math.abs(deltaVolume) <= 0.001f || Math.abs(deltaVolume) > maxVolumeChange * TICK_RATE) {
+        if (Math.abs(deltaVolume) <= 0.001f || Math.abs(deltaVolume) > maxVolumeChange * Config.getInstance().tickRate) {
             volume = targetVolume;
             return;
         }

@@ -5,6 +5,7 @@ import com.redsmods.sound_physics_perfected.RaycastingHelper;
 import com.redsmods.sound_physics_perfected.RedSoundInstance;
 import com.redsmods.sound_physics_perfected.ReverbHelpers.EnhancedReverbData;
 import com.redsmods.sound_physics_perfected.ReverbHelpers.ReverbConstants;
+import com.redsmods.sound_physics_perfected.config.Config;
 import com.redsmods.sound_physics_perfected.storageclasses.SoundData;
 import com.redsmods.sound_physics_perfected.wrappers.RedPermeatedSoundInstance;
 import com.redsmods.sound_physics_perfected.wrappers.RedPositionedSoundInstance;
@@ -23,7 +24,6 @@ import org.lwjgl.openal.ALC10;
 import org.lwjgl.openal.EXTEfx;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
@@ -106,7 +106,7 @@ public abstract class SoundSystemMixin {
                 }
 
                 /*? if >= 1.21.6 {*/ cir.cancel(); /*?} else {*/ /*ci.cancel(); *//*?}*/
-            } else if (ENABLE_PERMEATION && sound instanceof RedPermeatedSoundInstance) {
+            } else if (Config.getInstance().permeation && sound instanceof RedPermeatedSoundInstance) {
 //                System.out.println(sound);
                 FXQueue.add((RedPermeatedSoundInstance) sound);
             } else {
@@ -152,7 +152,7 @@ public abstract class SoundSystemMixin {
             }
         }
 
-        if (ENABLE_REVERB)
+        if (Config.getInstance().reverb)
             updateActiveSources(); // Brute force reverb to ALL sounds
     }
 
@@ -372,14 +372,14 @@ public abstract class SoundSystemMixin {
             earlyReflectionDelay = clamp(earlyReflectionDelay, ReverbConstants.MIN_EARLY_REFLECTION_DELAY, ReverbConstants.MAX_EARLY_REFLECTION_DELAY);
             lateReflectionStrength = clamp(lateReflectionStrength, 0.0f, 1.0f);
 
-            float enclosureFactor = isIndoors ? (1.0f - outdoorLeakPercent) * ReverbConstants.INDOOR_BIAS :
-                    Math.max(0.0f, (reverbStrength - outdoorLeakPercent)) * ReverbConstants.OUTDOOR_BIAS;
+            float enclosureFactor = isIndoors ? (1.0f - outdoorLeakPercent) * Config.getInstance().indoorBias :
+                    Math.max(0.0f, (reverbStrength - outdoorLeakPercent)) * Config.getInstance().outdoorBias;
             enclosureFactor = clamp(enclosureFactor, 0.0f, 1.0f);
 
             float opennessFactor = 1.0f - enclosureFactor;
 
-            float estimatedVolume = roomSize * roomSize * roomSize * ReverbConstants.ROOM_VOLUME_MULTIPLIER;
-            float estimatedSurfaceArea = ReverbConstants.SURFACE_AREA_MULTIPLIER * roomSize * roomSize;
+            float estimatedVolume = roomSize * roomSize * roomSize * Config.getInstance().roomVolumeMultiplier;
+            float estimatedSurfaceArea = Config.getInstance().surfaceAreaMultiplier * roomSize * roomSize;
             float surfaceToVolumeRatio = estimatedSurfaceArea / Math.max(estimatedVolume, 1.0f);
             surfaceToVolumeRatio = clamp(surfaceToVolumeRatio, ReverbConstants.MIN_SURFACE_TO_VOLUME_RATIO, ReverbConstants.MAX_SURFACE_TO_VOLUME_RATIO);
 
@@ -389,79 +389,78 @@ public abstract class SoundSystemMixin {
 
             float calculatedRT60 = rt60;
             if (calculatedRT60 < ReverbConstants.MIN_RT60 || calculatedRT60 > ReverbConstants.MAX_RT60) {
-                calculatedRT60 = ReverbConstants.RT60_SABINE_CONSTANT * estimatedVolume / Math.max(totalAbsorption, ReverbConstants.MIN_TOTAL_ABSORPTION);
+                calculatedRT60 = Config.getInstance().rt60SabineConstant * estimatedVolume / Math.max(totalAbsorption, Config.getInstance().minTotalAbsorption);
                 calculatedRT60 = clamp(calculatedRT60, ReverbConstants.MIN_CALCULATED_RT60, ReverbConstants.MAX_CALCULATED_RT60);
             }
 
             float effectiveDecayTime = calculatedRT60 * enclosureFactor;
             effectiveDecayTime = clamp(effectiveDecayTime, ReverbConstants.MIN_EFFECTIVE_DECAY_TIME, ReverbConstants.MAX_EFFECTIVE_DECAY_TIME);
 
-            float distanceAttenuation = 1.0f / (1.0f + wallDistance * ReverbConstants.DISTANCE_ATTENUATION_LINEAR +
-                    wallDistance * wallDistance * ReverbConstants.DISTANCE_ATTENUATION_QUADRATIC);
+            float distanceAttenuation = 1.0f / (1.0f + wallDistance * Config.getInstance().distanceAttenuationLinear +
+                    wallDistance * wallDistance * Config.getInstance().distanceAttenuationQuadratic);
 
-            float airAbsorptionFactor = 1.0f - (wallDistance * ReverbConstants.AIR_ABSORPTION_RATE);
-            airAbsorptionFactor = clamp(airAbsorptionFactor, ReverbConstants.MIN_AIR_ABSORPTION, 1.0f);
+            float airAbsorptionFactor = 1.0f - (wallDistance * Config.getInstance().airAbsorptionRate);
+            airAbsorptionFactor = clamp(airAbsorptionFactor, Config.getInstance().minAirAbsorption, 1.0f);
 
             float decayHfRatio = (1.0f - dynamicAbsorption) * airAbsorptionFactor * enclosureFactor;
             decayHfRatio = clamp(decayHfRatio, ReverbConstants.MIN_DECAY_HF_RATIO, ReverbConstants.MAX_DECAY_HF_RATIO);
 
             float reflectionsDelay = earlyReflectionDelay;
-            float reflectionsGain = earlyReflectionRatio * reverbStrength * enclosureFactor * distanceAttenuation * ReverbConstants.GLOBAL_REVERB_INTENSITY;
+            float reflectionsGain = earlyReflectionRatio * reverbStrength * enclosureFactor * distanceAttenuation * Config.getInstance().globalReverbIntensity;
             reflectionsGain = clamp(reflectionsGain, ReverbConstants.MIN_REFLECTIONS_GAIN, ReverbConstants.MAX_REFLECTIONS_GAIN);
 
-            float lateReverbDelay = earlyReflectionDelay * ReverbConstants.LATE_REVERB_DELAY_MULTIPLIER + (roomSize / ReverbConstants.SOUND_SPEED);
+            float lateReverbDelay = earlyReflectionDelay * Config.getInstance().lateReverbDelayMultiplier + (roomSize / Config.getInstance().soundSpeed);
             lateReverbDelay = clamp(lateReverbDelay, ReverbConstants.MIN_LATE_REVERB_DELAY, ReverbConstants.MAX_LATE_REVERB_DELAY);
 
-            float lateReverbGain = lateReflectionStrength * enclosureFactor * distanceAttenuation * ReverbConstants.GLOBAL_REVERB_INTENSITY;
+            float lateReverbGain = lateReflectionStrength * enclosureFactor * distanceAttenuation * Config.getInstance().globalReverbIntensity;
             lateReverbGain = clamp(lateReverbGain, ReverbConstants.MIN_LATE_REVERB_GAIN, ReverbConstants.MAX_LATE_REVERB_GAIN);
 
-            float roomComplexity = Math.min(1.0f, surfaceToVolumeRatio / ReverbConstants.ROOM_COMPLEXITY_DIVISOR);
-            float roomSizeEmphasis = roomSize < 10.0f ? ReverbConstants.SMALL_ROOM_EMPHASIS : ReverbConstants.LARGE_ROOM_EMPHASIS;
-            float diffusion = lerp(ReverbConstants.MIN_DIFFUSION, ReverbConstants.MAX_DIFFUSION,
-                    roomComplexity * ReverbConstants.DIFFUSION_COMPLEXITY_WEIGHT *
-                            enclosureFactor * ReverbConstants.DIFFUSION_ENCLOSURE_WEIGHT *
-                            weightedReverbStrength * ReverbConstants.DIFFUSION_REVERB_WEIGHT *
+            float roomComplexity = Math.min(1.0f, surfaceToVolumeRatio / Config.getInstance().roomComplexityDivisor);
+            float roomSizeEmphasis = roomSize < 10.0f ? Config.getInstance().smallRoomEmphasis : Config.getInstance().largeRoomEmphasis;
+            float diffusion = lerp(Config.getInstance().minDiffusion, Config.getInstance().maxDiffusion,
+                    roomComplexity * Config.getInstance().diffusionComplexityWeight *
+                            enclosureFactor * Config.getInstance().diffusionEnclosureWeight *
+                            weightedReverbStrength * Config.getInstance().diffusionReverbWeight *
                             roomSizeEmphasis);
             diffusion = clamp(diffusion, 0.1f, 1.0f);
 
-            float density = lerp(ReverbConstants.MIN_DENSITY, 1.0f, enclosureFactor * (1.0f - roomSize / ReverbConstants.DENSITY_ROOM_SIZE_FACTOR) * roomSizeEmphasis);
+            float density = lerp(Config.getInstance().minDensity, 1.0f, enclosureFactor * (1.0f - roomSize / Config.getInstance().densityRoomSizeFactor) * roomSizeEmphasis);
             density = clamp(density, 0.1f, 1.0f);
 
-            float overallGain = enclosureFactor * distanceAttenuation * (ReverbConstants.BASE_REVERB_GAIN + reverbStrength * ReverbConstants.REVERB_GAIN_MULTIPLIER) * ReverbConstants.GLOBAL_REVERB_INTENSITY;
-            overallGain = clamp(overallGain, 0.0f, ReverbConstants.MAX_OVERALL_GAIN);
+            float overallGain = enclosureFactor * distanceAttenuation * (Config.getInstance().baseReverbGain + reverbStrength * Config.getInstance().reverbGainMultiplier) * Config.getInstance().globalReverbIntensity;
+            overallGain = clamp(overallGain, 0.0f, Config.getInstance().maxOverallGain);
 
             float gainHF = (1.0f - dynamicAbsorption) * airAbsorptionFactor * enclosureFactor;
             gainHF = clamp(gainHF, 0.1f, 1.0f);
 
-            float airAbsorptionHF = airAbsorptionFactor * enclosureFactor + opennessFactor * ReverbConstants.OUTDOOR_HF_LEAK;
+            float airAbsorptionHF = airAbsorptionFactor * enclosureFactor + opennessFactor * Config.getInstance().outdoorHfLeak;
             airAbsorptionHF = clamp(airAbsorptionHF, ReverbConstants.MIN_AIR_ABSORPTION_HF, ReverbConstants.MAX_AIR_ABSORPTION_HF);
 
-            float roomRolloff = lerp(1.0f, 0.0f, enclosureFactor) * (roomSize / ReverbConstants.ROOM_ROLLOFF_SIZE_FACTOR);
+            float roomRolloff = lerp(1.0f, 0.0f, enclosureFactor) * (roomSize / Config.getInstance().roomRolloffSizeFactor);
             roomRolloff = clamp(roomRolloff, ReverbConstants.MIN_ROOM_ROLLOFF, ReverbConstants.MAX_ROOM_ROLLOFF);
 
             float sendFilterGain = overallGain;
-            float sendFilterGainHF = gainHF * ReverbConstants.SEND_FILTER_HF_REDUCTION;
+            float sendFilterGainHF = gainHF * Config.getInstance().sendFilterHfReduction;
 
-            float echoDensity = lerp(1.0f, 0.4f, roomSize / ReverbConstants.DENSITY_ROOM_SIZE_FACTOR) * enclosureFactor;
+            float echoDensity = lerp(1.0f, 0.4f, roomSize / Config.getInstance().densityRoomSizeFactor) * enclosureFactor;
             echoDensity = clamp(echoDensity, 0.1f, 1.0f);
 
-            float modulationTime = clamp(roomSize * ReverbConstants.MODULATION_TIME_MULTIPLIER, ReverbConstants.MIN_MODULATION_TIME, ReverbConstants.MAX_MODULATION_TIME);
-            float modulationDepth = clamp(enclosureFactor * ReverbConstants.MODULATION_DEPTH_MULTIPLIER, ReverbConstants.MIN_MODULATION_DEPTH, ReverbConstants.MAX_MODULATION_DEPTH);
+            float modulationTime = clamp(roomSize * Config.getInstance().modulationTimeMultiplier, ReverbConstants.MIN_MODULATION_TIME, ReverbConstants.MAX_MODULATION_TIME);
+            float modulationDepth = clamp(enclosureFactor * Config.getInstance().modulationDepthMultiplier, ReverbConstants.MIN_MODULATION_DEPTH, ReverbConstants.MAX_MODULATION_DEPTH);
 
-            float hfReference = clamp(ReverbConstants.BASE_HF_REFERENCE - roomSize * ReverbConstants.HF_ROOM_SIZE_FACTOR,
+            float hfReference = clamp(Config.getInstance().baseHfReference - roomSize * Config.getInstance().hfRoomSizeFactor,
                     ReverbConstants.MIN_HF_REFERENCE, ReverbConstants.MAX_HF_REFERENCE);
-            float lfReference = clamp(ReverbConstants.BASE_LF_REFERENCE - roomSize * ReverbConstants.LF_ROOM_SIZE_FACTOR,
+            float lfReference = clamp(Config.getInstance().baseLfReference - roomSize * Config.getInstance().lfRoomSizeFactor,
                     ReverbConstants.MIN_LF_REFERENCE, ReverbConstants.MAX_LF_REFERENCE);
 
-            float gainLF = clamp(1.0f - dynamicAbsorption * ReverbConstants.DYNAMIC_ABSORPTION_LF_FACTOR,
-                    ReverbConstants.MIN_GAIN_LF, ReverbConstants.MAX_GAIN_LF);
+            float gainLF = clamp(1.0f - dynamicAbsorption * Config.getInstance().dynamicAbsorptionLfFactor, ReverbConstants.MIN_GAIN_LF, ReverbConstants.MAX_GAIN_LF);
 
-            float decayLfRatio = clamp(decayHfRatio * ReverbConstants.DECAY_LF_MULTIPLIER,
+            float decayLfRatio = clamp(decayHfRatio * Config.getInstance().decayLfMultiplier,
                     ReverbConstants.MIN_DECAY_HF_RATIO, ReverbConstants.MAX_DECAY_HF_RATIO);
 
-            float echoTime = clamp(roomSize * ReverbConstants.ECHO_TIME_MULTIPLIER,
+            float echoTime = clamp(roomSize * Config.getInstance().echoTimeMultiplier,
                     ReverbConstants.MIN_ECHO_TIME, ReverbConstants.MAX_ECHO_TIME);
-            float echoDepth = clamp(echoDensity * ReverbConstants.ECHO_DEPTH_MULTIPLIER,
+            float echoDepth = clamp(echoDensity * Config.getInstance().echoDepthMultiplier,
                     ReverbConstants.MIN_ECHO_DEPTH, ReverbConstants.MAX_ECHO_DEPTH);
 
             // Apply all parameters to OpenAL

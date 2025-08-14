@@ -3,6 +3,7 @@ package com.redsmods.sound_physics_perfected;
 import com.redsmods.sound_physics_perfected.ReverbHelpers.EnhancedReverbData;
 import com.redsmods.sound_physics_perfected.ReverbHelpers.ReverbSurfaceData;
 import com.redsmods.sound_physics_perfected.ReverbHelpers.RoomVolumeData;
+import com.redsmods.sound_physics_perfected.config.Config;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.resources.sounds.TickableSoundInstance;
@@ -83,32 +84,12 @@ public class RaycastingHelper {
     private static final AtomicBoolean isRaytracing = new AtomicBoolean(false);
     private static final AtomicBoolean freezeTickCounter = new AtomicBoolean(false);
 
-    // Config Grabbed stuff
-    private static int RAYS_CAST = Config.getInstance().raysCast;
-    private static int MAX_BOUNCES = Config.getInstance().raysBounced;
-    private static double RAY_SEGMENT_LENGTH = 16.0 * Config.getInstance().maxRayLength; // 12 chunk max length
-    public static boolean ENABLE_REVERB = Config.getInstance().reverbEnabled;
-    public static boolean ENABLE_PERMEATION = Config.getInstance().permeationEnabled;
-    public static int TICK_RATE = Config.getInstance().tickRate;
-    public static RedsAttenuationType ATTENUATION_TYPE = Config.getInstance().attenuationType;
-    public static double PERMEATION_STEP_SIZE = Config.getInstance().permeationStepSize;
-
     static {
         surfaceMaterials.put("default", new ReverbSurfaceData(0.05, 0.7, "medium"));
     }
 
     // SoundSystemMixin Public static
     public static final Queue<RedPermeatedSoundInstance> FXQueue = new LinkedList<>();
-
-    public static void getConfig() {
-        RAYS_CAST = Config.getInstance().raysCast;
-        MAX_BOUNCES = Config.getInstance().raysBounced;
-        ENABLE_REVERB = Config.getInstance().reverbEnabled;
-        ENABLE_PERMEATION = Config.getInstance().permeationEnabled;
-        RAY_SEGMENT_LENGTH = 16.0 * Config.getInstance().maxRayLength;
-        TICK_RATE = Config.getInstance().tickRate;
-        ATTENUATION_TYPE = Config.getInstance().attenuationType;
-    }
 
     public static void castBouncingRaysAndDetectSFX(Level world, Player player) {
         try {
@@ -118,7 +99,7 @@ public class RaycastingHelper {
             }
 
             Vec3 playerEyePos = player.getEyePosition();
-            double maxTotalDistance = RAY_SEGMENT_LENGTH * MAX_BOUNCES; // Max total distance after all bounces
+            double maxTotalDistance = 16.0 * Config.getInstance().maxRayLength * Config.getInstance().raysBounced; // Max total distance after all bounces
 
             // Clear previous ray hit counts
             entityRayHitCounts.clear();
@@ -184,7 +165,7 @@ public class RaycastingHelper {
             soundTasks.add(task);
         }
 
-        if(ENABLE_PERMEATION) {
+        if(Config.getInstance().permeation) {
             for (AveragedSoundData avgData : muffledAveragedResults.values()) {
                 CompletableFuture<Void> task = CompletableFuture.runAsync(() ->
                                 playMuffled(client, avgData, playerEyePos, 1f, 1f),
@@ -225,7 +206,7 @@ public class RaycastingHelper {
             else
                 baseVolume = ((RedSoundInstance) originalSound).original.getVolume();
 
-            float confidenceMultiplier = (float) avgData.totalWeight / (float) RAYS_CAST*MAX_BOUNCES;
+            float confidenceMultiplier = (float) avgData.totalWeight / (float) Config.getInstance().raysCast*Config.getInstance().raysBounced;
             confidenceMultiplier = Math.min(confidenceMultiplier,1.0f); // make it so it never makes the sound louder lol
 
             float adjustedVolume = baseVolume * volumeMultiplier * confidenceMultiplier;
@@ -276,7 +257,7 @@ public class RaycastingHelper {
                 baseVolume = ((RedTickableInstance) originalSound).getOriginalVolume();
             else
                 baseVolume = ((RedSoundInstance) originalSound).original.getVolume();
-            float confidenceMultiplier = (float) avgData.totalWeight / (float) RAYS_CAST*MAX_BOUNCES;
+            float confidenceMultiplier = (float) avgData.totalWeight / (float) Config.getInstance().raysCast*Config.getInstance().raysBounced;
             float adjustedVolume = baseVolume * volumeMultiplier * confidenceMultiplier;
             if (confidenceMultiplier > 0.9) adjustedVolume = 0;
 
@@ -380,12 +361,12 @@ public class RaycastingHelper {
         SoundData hitEntity = null;
 
 
-        if (ENABLE_PERMEATION)
+        if (Config.getInstance().permeation)
             castRedRay(world, player, startPos, soundQueue, totalDistanceTraveled, initialDirection);
         castGreenRay(world, player, startPos, soundQueue, totalDistanceTraveled, initialDirection);
 
-        for (int bounce = 0; bounce <= MAX_BOUNCES && remainingDistance > 0; bounce++) {
-            double segmentDistance = Math.min(RAY_SEGMENT_LENGTH, remainingDistance);
+        for (int bounce = 0; bounce <= Config.getInstance().raysBounced && remainingDistance > 0; bounce++) {
+            double segmentDistance = Math.min(16.0 * Config.getInstance().maxRayLength, remainingDistance);
             Vec3 segmentEnd = currentPos.add(currentDirection.scale(segmentDistance));
 
             ClipContext raycastContext = new ClipContext(
@@ -410,7 +391,7 @@ public class RaycastingHelper {
             totalDistanceTraveled += segmentTraveled;
 
             if (hitBlock) {
-                if (ENABLE_REVERB) {
+                if (Config.getInstance().reverb) {
                     BlueRayResult blueRayResult = castBlueRay(world, player, actualEnd, soundQueue, totalDistanceTraveled, initialDirection, bounce);
                     if (blueRayResult.arrived) { // cast blue ray and if it makes it back to the player
                         // make it update that as initial direction + set totalDistance
@@ -418,7 +399,7 @@ public class RaycastingHelper {
                         totalDistanceTraveled = blueRayResult.distance;
                     }
                 }
-                if (ENABLE_PERMEATION)
+                if (Config.getInstance().permeation)
                     castRedRay(world, player, actualEnd, soundQueue, totalDistanceTraveled, initialDirection);
                 castGreenRay(world, player, actualEnd, soundQueue, totalDistanceTraveled, initialDirection);
             }
@@ -436,7 +417,7 @@ public class RaycastingHelper {
             } else {
                 for (SoundData soundEntity : weatherQueue) {
                     double weight;
-                    if (ATTENUATION_TYPE == ATTENUATION_TYPE.INVERSE_SQUARE)
+                    if (Config.getInstance().attenuationType == RedsAttenuationType.INVERSE_SQUARE)
                         weight = 1.0 / (Math.max(totalDistanceTraveled - segmentTraveled, 0.1) * Math.max(totalDistanceTraveled - segmentTraveled, 0.1));
                     else
                         weight = 1.0 / Math.max(totalDistanceTraveled - segmentTraveled, 0.1);
@@ -495,7 +476,7 @@ public class RaycastingHelper {
 
             if (hasLineOfSight) {
                 double weight;
-                if (ATTENUATION_TYPE == ATTENUATION_TYPE.INVERSE_SQUARE)
+                if (Config.getInstance().attenuationType == RedsAttenuationType.INVERSE_SQUARE)
                     weight = 1.0 / (Math.max(distanceToEntity + currentDistance, 0.1) * Math.max(distanceToEntity + currentDistance, 0.1));
                 else
                     weight = 1.0 / Math.max(distanceToEntity + currentDistance, 0.1);
@@ -539,7 +520,7 @@ public class RaycastingHelper {
 
             if (hasLineOfSight) {
                 double weight;
-                if (ATTENUATION_TYPE == ATTENUATION_TYPE.INVERSE_SQUARE)
+                if (Config.getInstance().attenuationType == RedsAttenuationType.INVERSE_SQUARE)
                     weight = 1.0 / (Math.max(distanceToEntity + currentDistance, 0.1) * Math.max(distanceToEntity + currentDistance, 0.1));
                 else
                     weight = 1.0 / Math.max(distanceToEntity + currentDistance, 0.1);
@@ -881,7 +862,7 @@ public class RaycastingHelper {
 
                 // Find the exit point by moving along the ray direction until we're outside the block
                 Vec3 exitPoint = hit.getLocation();
-                double step = PERMEATION_STEP_SIZE; // Small step size for precision
+                double step = Config.getInstance().permeationStepSize; // Small step size for precision
 
                 while (blockBounds.contains(exitPoint)) {
                     exitPoint = exitPoint.add(direction.scale(step));
@@ -944,7 +925,7 @@ public class RaycastingHelper {
     public static Vec3[] generateRayDirections() {
         // Generate directions in a roughly spherical pattern
         // Using fibonacci sphere for even distribution
-        int numRays = RAYS_CAST; // Good balance between accuracy and performance
+        int numRays = Config.getInstance().raysCast; // Good balance between accuracy and performance
         Vec3[] directions = new Vec3[numRays];
 
         double goldenRatio = (1 + Math.sqrt(5)) / 2;

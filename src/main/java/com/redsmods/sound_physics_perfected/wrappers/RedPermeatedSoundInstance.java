@@ -1,6 +1,7 @@
 package com.redsmods.sound_physics_perfected.wrappers;
 
 import com.redsmods.sound_physics_perfected.RaycastingHelper;
+import com.redsmods.sound_physics_perfected.config.Config;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.resources.ResourceLocation;
@@ -10,7 +11,6 @@ import org.lwjgl.openal.AL10;
 import org.lwjgl.openal.AL11;
 import org.lwjgl.openal.EXTEfx;
 
-import static com.redsmods.sound_physics_perfected.RaycastingHelper.TICK_RATE;
 import static org.joml.Math.lerp;
 
 public class RedPermeatedSoundInstance extends RedTickableInstance {
@@ -39,8 +39,8 @@ public class RedPermeatedSoundInstance extends RedTickableInstance {
     @Override
     public void tick() {
         tickCount++;
-        if (super.isStopped() || TICK_RATE == 0) return; // DONE or ticking sounds is off
-        if (tickCount % TICK_RATE == 0) { // only update once every .1 second
+        if (super.isStopped() || Config.getInstance().tickRate == 0) return; // DONE or ticking sounds is off
+        if (tickCount % Config.getInstance().tickRate == 0) { // only update once every .1 second
             RaycastingHelper.permeatedTickQueue.add(this);
         }
         super.updatePos();
@@ -52,10 +52,10 @@ public class RedPermeatedSoundInstance extends RedTickableInstance {
 
         // Calculate the difference between current and target volume
         float deltaVolume = targetMuffle - permeationIndex;
-        float maxVolumeChange = Math.abs(deltaVolume / TICK_RATE);
+        float maxVolumeChange = Math.abs(deltaVolume / Config.getInstance().tickRate);
 
         // If we're already at the target or very close, set volume directly
-        if (Math.abs(deltaVolume) <= 0.001f || Math.abs(deltaVolume) > maxVolumeChange * TICK_RATE) {
+        if (Math.abs(deltaVolume) <= 0.001f || Math.abs(deltaVolume) > maxVolumeChange * Config.getInstance().tickRate) {
             permeationIndex = targetMuffle;
             if (sourceSet && AL10.alIsSource(id))
                 applyMuffleToSource(id,1-permeationIndex);
