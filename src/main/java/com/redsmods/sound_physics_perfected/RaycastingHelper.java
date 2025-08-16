@@ -194,7 +194,7 @@ public class RaycastingHelper {
             SoundInstance originalSound = avgData.soundEntity.sound;
             ResourceLocation soundId = originalSound.getLocation();
             if(avgData.totalWeight == 0 && originalSound instanceof RedTickableInstance) {
-                ((RedTickableInstance) originalSound).setVolume(0);
+                ((RedTickableInstance) originalSound).setTargetVolume(0);
 //                ((RedTickableInstance) originalSound).setPos(((RedTickableInstance) originalSound).getOriginalPosition());
                 return;
             }
@@ -219,7 +219,7 @@ public class RaycastingHelper {
             // Create positioned sound with adjustments
             if (originalSound instanceof RedTickableInstance) { // update pos of sounds
                 ((RedTickableInstance) originalSound).setTargetPosition(targetPosition);
-                ((RedTickableInstance) originalSound).setVolume(Math.max(0.01f, Math.min(1.0f, adjustedVolume)));
+                ((RedTickableInstance) originalSound).setTargetVolume(Math.max(0.01f, Math.min(1.0f, adjustedVolume)));
                 return;
             } else if (((RedSoundInstance) originalSound) instanceof TickableSoundInstance) {
                 newSound = new RedTickableInstance(soundId,originalSound.getSound(),originalSound.getSource(),targetPosition,Math.max(0.01f, Math.min(1.0f, adjustedVolume)),Math.max(0.5f, Math.min(2.0f, adjustedPitch)),originalSound, new Vec3(originalSound.getX(), originalSound.getY(), originalSound.getZ()),baseVolume);
@@ -267,7 +267,7 @@ public class RaycastingHelper {
 
             if (originalSound instanceof RedTickableInstance) { // update pos of sounds
                 ((RedPermeatedSoundInstance) originalSound).setTargetPosition(targetPosition);
-                ((RedPermeatedSoundInstance) originalSound).setVolume(Math.max(0.01f, Math.min(1.0f, adjustedVolume)));
+                ((RedPermeatedSoundInstance) originalSound).setTargetVolume(Math.max(0.01f, Math.min(1.0f, adjustedVolume)));
                 ((RedPermeatedSoundInstance) originalSound).setPermeationIndex(confidenceMultiplier);
                 return;
             }

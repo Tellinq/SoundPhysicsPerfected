@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 
 @Mixin(SoundEvent.class)
-public class SoundEventMixin {
+public class Mixin_SoundEvent_RangeMultiplier {
 
     @ModifyConstant(method = "getRange", constant = @Constant(floatValue = 16F), expect = 2)
     private float allowance1(float value) {

@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Player.class)
-public class PlayerEntityMixin {
+public class Mixin_Player_ClientRaycastSFX {
 
     private static int TICKS_SINCE_WORLD = 0;
 

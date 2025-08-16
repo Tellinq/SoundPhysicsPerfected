@@ -2,6 +2,7 @@ package com.redsmods.sound_physics_perfected.wrappers;
 
 import com.redsmods.sound_physics_perfected.RaycastingHelper;
 import com.redsmods.sound_physics_perfected.config.Config;
+import com.redsmods.sound_physics_perfected.util.MathUtil;
 import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.resources.ResourceLocation;
@@ -86,7 +87,7 @@ public class RedPermeatedSoundInstance extends RedTickableInstance {
     public void applyMuffleToSource(int sourceId, float muffleStrength) {
         try {
             // Clamp muffle strength between 0.0 (no muffling) and 1.0 (maximum muffling)
-            muffleStrength = clamp(muffleStrength, 0.0f, 1.0f);
+            muffleStrength = MathUtil.clamp(muffleStrength, 0.0f, 1.0f);
 
             // Calculate filter parameters based on muffle strength
             float lowpassGain = lerp(1.0f, 0.2f, muffleStrength);     // Overall volume reduction
@@ -102,9 +103,5 @@ public class RedPermeatedSoundInstance extends RedTickableInstance {
         } catch (Exception e) {
             // Handle errors silently like the original function
         }
-    }
-
-    private static float clamp(float a, float b, float c) {
-        return Math.min(Math.max(a,b),c);
     }
 }

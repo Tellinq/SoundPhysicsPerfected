@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(ChannelAccess.ChannelHandle.class)
-public interface SourceManagerAccessor {
+public interface Accessor_ChannelHandle {
     /**
      * Accessor for the private `sources` map in SourceManager,
      * which maps SoundInstance → Channel.

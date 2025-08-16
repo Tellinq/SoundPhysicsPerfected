@@ -11,6 +11,7 @@ import net.minecraft.client.resources.sounds.TickableSoundInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.NotNull;
 
 @Getter
 public class RedTickableInstance implements TickableSoundInstance {
@@ -28,7 +29,7 @@ public class RedTickableInstance implements TickableSoundInstance {
     private float pitch;
     private int tickCount;
     @Setter private Vec3 targetPosition;
-    private float targetVolume;
+    @Setter private float targetVolume;
 
     public RedTickableInstance(ResourceLocation location, Sound sound, SoundSource source, Vec3 position, float volume, float pitch, SoundInstance wrapped, Vec3 originalPosition, float originalVolume) {
         this.location = location;
@@ -64,7 +65,7 @@ public class RedTickableInstance implements TickableSoundInstance {
     }
 
     @Override
-    public Attenuation getAttenuation() {
+    public @NotNull Attenuation getAttenuation() {
         return Attenuation.NONE;
     }
 
@@ -106,9 +107,6 @@ public class RedTickableInstance implements TickableSoundInstance {
         z += moveZ;
     }
 
-    public void setVolume(float targetVolume) {
-        this.targetVolume = targetVolume;
-    }
     public void updateVolume() {
         // Calculate the difference between current and target volume
         float deltaVolume = targetVolume - volume;
