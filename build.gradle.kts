@@ -26,6 +26,7 @@ class ModData {
 
 class Dependencies {
     val neoforgeVersion = property("deps.neoforge_version")
+    val forgeVersion = property("deps.forge_version")
     val fabricLoaderVersion = property("deps.fabric_loader_version")
     val fabricApiVersion = property("deps.fabric_api_version")
     val modmenuVersion = property("deps.modmenu_version")
@@ -40,6 +41,8 @@ class LoaderData {
     val loader = loom.platform.get().name.lowercase()
     val isFabric = loader == "fabric"
     val isNeoforge = loader == "neoforge"
+    val isForge = loader == "forge"
+    val isForgeLike = loader == "forge" || loader == "neoforge"
 }
 
 class McData {
@@ -59,6 +62,8 @@ base { archivesName.set(mod.id) }
 stonecutter {
     constants["fabric"] = loader.isFabric
     constants["neoforge"] = loader.isNeoforge
+    constants["forge"] = loader.isForge
+    constants["forgelike"] = loader.isForgeLike
 }
 
 blossom {
@@ -258,6 +263,10 @@ tasks.processResources {
 
         if (loader.isNeoforge) {
             put("forge_version", deps.neoforgeVersion)
+        }
+
+        if (loader.isForge) {
+            put("forge_version", deps.forgeVersion)
         }
     }
 
