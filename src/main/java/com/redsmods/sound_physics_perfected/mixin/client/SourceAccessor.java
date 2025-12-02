@@ -11,5 +11,5 @@ public interface SourceAccessor {
      * which maps SoundInstance → Channel.
      */
     @Accessor("source")
-    int getSource();
+    int sound_physics_perfected$getSource();
 }

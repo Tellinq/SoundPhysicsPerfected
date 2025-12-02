@@ -33,6 +33,7 @@ class Dependencies {
     val yaclVersion = property("deps.yacl_version")
     val devauthVersion = property("deps.devauth_version")
     val mixinconstraintsVersion = property("deps.mixinconstraints_version")
+    val mixinsextrasVersion = property("deps.mixinextras_version")
     val mixinsquaredVersion = property("deps.mixinsquared_version")
 }
 
@@ -130,6 +131,7 @@ dependencies {
 
     modRuntimeOnly("me.djtheredstoner:DevAuth-${loader.loader}:${deps.devauthVersion}")
     include(implementation("com.moulberry:mixinconstraints:${deps.mixinconstraintsVersion}")!!)!!
+    include(implementation("io.github.llamalad7:mixinextras-${loader.loader}:${deps.mixinsextrasVersion}")!!)!!
     include(implementation(annotationProcessor("com.github.bawnorton.mixinsquared:mixinsquared-${loader.loader}:${deps.mixinsquaredVersion}")!!)!!)
     modImplementation("de.maxhenkel.voicechat:voicechat-api:${deps.voicechat_api_version}")
 

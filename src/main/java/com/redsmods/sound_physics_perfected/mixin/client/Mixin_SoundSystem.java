@@ -1,32 +1,23 @@
 package com.redsmods.sound_physics_perfected.mixin.client;
 
 import com.mojang.blaze3d.audio.Channel;
-import com.redsmods.sound_physics_perfected.OpenALEffectsHandler;
-import com.redsmods.sound_physics_perfected.RaycastingHelper;
 import com.redsmods.sound_physics_perfected.RedSoundInstance;
-import com.redsmods.sound_physics_perfected.ReverbHelpers.EnhancedReverbData;
 import com.redsmods.sound_physics_perfected.ReverbHelpers.LegacyReverb;
-import com.redsmods.sound_physics_perfected.ReverbHelpers.ReverbConstants;
 import com.redsmods.sound_physics_perfected.config.Config;
 import com.redsmods.sound_physics_perfected.config.DebugType;
 import com.redsmods.sound_physics_perfected.storageclasses.SoundData;
 import com.redsmods.sound_physics_perfected.wrappers.RedPermeatedSoundInstance;
 import com.redsmods.sound_physics_perfected.wrappers.RedPositionedSoundInstance;
-import com.redsmods.sound_physics_perfected.wrappers.RedTickableInstance;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.resources.sounds.TickableSoundInstance;
 import net.minecraft.client.sounds.ChannelAccess;
 import net.minecraft.client.sounds.SoundEngine;
 import net.minecraft.client.sounds.SoundManager;
-import net.minecraft.client.sounds.WeighedSoundEvents;
-import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.openal.AL10;
-import org.lwjgl.openal.AL11;
 import org.lwjgl.openal.ALC10;
-import org.lwjgl.openal.EXTEfx;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -37,90 +28,70 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.redsmods.sound_physics_perfected.OpenALEffectsHandler.*;
 import static com.redsmods.sound_physics_perfected.RaycastingHelper.*;
-import static org.joml.Math.lerp;
-import static org.lwjgl.openal.EXTEfx.*;
 
 @Mixin(SoundEngine.class)
-public abstract class SoundSystemMixin {
+public abstract class Mixin_SoundSystem {
 
+    @Final
     @Shadow
     private SoundManager soundManager;
+    @Final
     @Shadow
     private Map<SoundInstance, ChannelAccess.ChannelHandle> instanceToChannel;
 
-    @Shadow public abstract void destroy();
 
-    @Shadow public abstract void tick(boolean paused);
-
-    //? if <1.21.6 {
-    /*@Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At("HEAD"), cancellable = true)
-    private void onSoundPlay(SoundInstance sound, CallbackInfo ci) {
-    *///?} else {
-    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)Lnet/minecraft/client/sounds/SoundEngine$PlayResult;", at = @At("HEAD"), cancellable = true)
-    private void onSoundPlay(SoundInstance sound, CallbackInfoReturnable<SoundEngine.PlayResult> cir) {
-     //?}
+    @Inject(
+            method = "play",
+            at = @At("HEAD"),
+            cancellable = true)
+    private void sound_physics_perfected$onSoundPlay(
+            SoundInstance sound,
+            //? if <1.21.6 {
+            /*CallbackInfo ci
+            *///?} else {
+            CallbackInfoReturnable<SoundEngine.PlayResult> cir
+            //?}
+    ) {
         if (!fxHandler.efxInitialized) {
             fxHandler.initializeReverb();
         }
-//        Minecraft client = Minecraft.getInstance();
-//        if (sound instanceof TickableSoundInstance) {
-//            client.particleEngine.createParticle(ParticleTypes.NOTE,
-//                    sound.getX(), sound.getY(), sound.getZ(), 0.0D, 0.0D, 0.0D);
-//            System.out.println("modified sound location" + sound.getX() + " " + sound.getY() + " " + sound.getZ());
-//        } else {
-//            client.particleEngine.createParticle(ParticleTypes.ANGRY_VILLAGER,
-//                    sound.getX(), sound.getY(), sound.getZ(), 0.0D, 0.0D, 0.0D);
-//            System.out.println("original sound location" + sound.getX() + " " + sound.getY() + " " + sound.getZ());
-//        }
-        if (isSoundBlacklisted(sound.toString())) return; // skip if in the overall blacklist
 
-        if (!fxHandler.efxInitialized) return; // Skip if initialization failed
+        if (sound_physics_perfected$isSoundBlacklisted(sound.toString())) return;
+
+        if (!fxHandler.efxInitialized) return;
 
         Minecraft client = Minecraft.getInstance();
-        // Add null checks
         if (client == null || client.player == null || client.level == null || sound == null || soundManager == null) {
             return;
         }
 
         try {
-            WeighedSoundEvents weightedSoundSet = sound.resolve(soundManager); // load pitches and whatnot into the sound data
             if (!(sound instanceof RedPositionedSoundInstance || sound instanceof TickableSoundInstance || sound instanceof RedPermeatedSoundInstance) && sound.getAttenuation() != SoundInstance.Attenuation.NONE) { // !replayList.contains(redSoundData)
-                // Get sound coordinates
                 double soundX = sound.getX();
                 double soundY = sound.getY();
                 double soundZ = sound.getZ();
                 Vec3 soundPos = new Vec3(soundX, soundY, soundZ);
 
-                // Get sound ID
                 String soundId = sound.getLocation().toString();
 
-                // Create sound data object
                 RedSoundInstance redSoundData = new RedSoundInstance(sound);
                 SoundData soundData = new SoundData(redSoundData, soundPos, soundId);
 
-                // Add to queue
                 soundQueue.offer(soundData);
 
-                // Remove the oldest sounds if queue is too large
                 while (soundQueue.size() > Config.getInstance().maxSounds) {
                     soundQueue.poll();
                 }
 
                 /*? if >= 1.21.6 {*/ cir.cancel(); /*?} else {*/ /*ci.cancel(); *//*?}*/
             } else if (Config.getInstance().permeation && sound instanceof RedPermeatedSoundInstance) {
-//                System.out.println(sound);
                 FXQueue.add((RedPermeatedSoundInstance) sound);
-            } else {
-//                System.out.println(sound);
             }
         } catch (Exception e) {
-            // Log error but don't crash
             System.err.println("Error tracking sound: " + e.getMessage());
         }
     }
@@ -135,23 +106,26 @@ public abstract class SoundSystemMixin {
                     shift = At.Shift.AFTER),
             locals = LocalCapture.CAPTURE_FAILHARD
     )
-    private void onSoundTick(boolean paused, CallbackInfo ci) {
+    private void sound_physics_perfected$onSoundTick(boolean paused, CallbackInfo ci) {
         if (!fxHandler.efxInitialized) {
             fxHandler.initializeReverb();
         }
 
-        if (!fxHandler.efxInitialized) return; // Skip if initialization failed
+        if (!fxHandler.efxInitialized) {
+            return;
+        }
 
         if (paused) {
             return;
         }
+
         while(!FXQueue.isEmpty()) {
             try {
                 RedPermeatedSoundInstance sound = FXQueue.poll();
                 ChannelAccess.ChannelHandle manager = instanceToChannel.get(sound);
                 SourceManagerAccessor accessor = (SourceManagerAccessor) manager;
-                Channel source = accessor.getChannel();
-                int id = ((SourceAccessor) source).getSource();
+                Channel source = accessor.sound_physics_perfected$getChannel();
+                int id = ((SourceAccessor) source).sound_physics_perfected$getSource();
                 sound.setSource(id);
                 fxHandler.applyMuffleToSource(id,sound.getPermeationIndex());
             } catch (Exception e) {
@@ -160,14 +134,19 @@ public abstract class SoundSystemMixin {
             }
         }
 
-        if (Config.getInstance().reverb)
-            updateActiveSources(); // Brute force reverb to ALL sounds
+        if (Config.getInstance().reverb) {
+            sound_physics_perfected$updateActiveSources(); // Brute force reverb to ALL sounds
+        }
     }
 
     @ModifyVariable(method = "stop(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At("HEAD"), argsOnly = true)
-    private SoundInstance modifySoundParameter(SoundInstance sound) {
-        if (!fxHandler.efxInitialized) return sound; // fx aren't init, most likely permeation isn't playing
-        if(sound == null) return sound; // sorry, if some other mod kills their sound by using a mixin, i am not finna be held responsible, that's their own fault.
+    private SoundInstance sound_physics_perfected$modifySoundParameter(SoundInstance sound) {
+        if (!fxHandler.efxInitialized) {
+            return sound; // fx aren't init, most likely permeation isn't playing
+        }
+        if(sound == null) {
+            return sound; // sorry, if some other mod kills their sound by using a mixin, i am not finna be held responsible, that's their own fault.
+        }
         soundQueue.remove(sound);
         SoundInstance customSound = soundInstanceMap.get(sound);
         RedPermeatedSoundInstance soundPermeation = soundPermInstanceMap.get(sound);
@@ -176,13 +155,11 @@ public abstract class SoundSystemMixin {
         soundInstanceMap.remove(sound);
         soundPermInstanceMap.remove(sound);
 
-        // remove the permeation manually before using the default stop method
         ChannelAccess.ChannelHandle sourceManager = instanceToChannel.get(soundPermeation);
         if (sourceManager != null) {
             sourceManager.execute(Channel::stop);
         }
 
-        // remove custom sounds
         ChannelAccess.ChannelHandle sourceManagerNormal = instanceToChannel.get(customSound);
         if (sourceManagerNormal != null) {
             sourceManagerNormal.execute(Channel::stop);
@@ -194,7 +171,7 @@ public abstract class SoundSystemMixin {
 
     // Add method to clean up orphaned sounds
     @Inject(method = "stopAll()V", at = @At("HEAD"))
-    private void onStopAll(CallbackInfo ci) {
+    private void sound_physics_perfected$onStopAll(CallbackInfo ci) {
         soundQueue.clear();
     }
 
@@ -202,14 +179,13 @@ public abstract class SoundSystemMixin {
      * Update all currently active sources with reverb
      * This is a brute-force approach that works when source tracking is difficult
      */
-    private static void updateActiveSources() {
-        // Check if OpenAL context is available
+    @Unique
+    private static void sound_physics_perfected$updateActiveSources() {
         long context = ALC10.alcGetCurrentContext();
         if (context == 0) {
-            return; // No context available
+            return;
         }
 
-        // Clear any existing errors
         AL10.alGetError();
 
         try {
@@ -219,7 +195,6 @@ public abstract class SoundSystemMixin {
             // Brute force approach - check source IDs 1-256 (typical range)
             for (int sourceId = 1; sourceId <= 256; sourceId++) {
                 if (AL10.alIsSource(sourceId)) {
-                    // Check if source is playing
                     int state = AL10.alGetSourcei(sourceId, AL10.AL_SOURCE_STATE);
                     if (state == AL10.AL_PLAYING || state == AL10.AL_PAUSED) {
                         if (Config.getInstance().legacyReverb == LegacyReverb.VERSION140)
@@ -228,38 +203,26 @@ public abstract class SoundSystemMixin {
                             fxHandler.applyInitalLegacyReverbToSource(sourceId);
                         } else
                             fxHandler.applyReverbToSource(sourceId);
-
-//                        System.out.println("Source ID: " + sourceId);
                     }
                 }
             }
-        } catch (Exception e) {
-            // Ignore errors
+        } catch (Exception ignored) {
         }
-    }
-
-    private static void debugSourceCount() {
-        int sourcesInUse = 0;
-        for (int i = 1; i < 1000; i++) { // Check first 1000 IDs
-            if (AL10.alIsSource(i)) {
-                sourcesInUse++;
-            }
-        }
-        System.out.println("Sources currently in use: " + sourcesInUse);
     }
 
     @Inject(method = "destroy()V", at = @At("HEAD"))
-    private void onAudioEngineStop(CallbackInfo ci) {
+    private void sound_physics_perfected$onAudioEngineStop(CallbackInfo ci) {
         fxHandler.cleanupEFXResources();
     }
 
     @Inject(method = "loadLibrary()V", at = @At("TAIL"))
-    private void onAudioEngineStart(CallbackInfo ci) {
+    private void sound_physics_perfected$onAudioEngineStart(CallbackInfo ci) {
         fxHandler.efxInitialized = false;
         fxHandler.initializeReverb();
     }
 
-    private boolean isSoundBlacklisted(String soundName) {
+    @Unique
+    private boolean sound_physics_perfected$isSoundBlacklisted(String soundName) {
         if (soundName == null || soundName.isEmpty()) {
             return false;
         }

@@ -9,12 +9,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Player.class)
-public class PlayerEntityMixin {
+public class Mixin_ProcessPlayerRaycasts {
 
     private static int TICKS_SINCE_WORLD = 0;
 
     @Inject(method = "tick", at = @At("TAIL"))
-    private void onPlayerTick(CallbackInfo ci) {
+    private void sound_physics_perfected$processPlayerSoundRaycasting(CallbackInfo ci) {
 
         Player player = (Player) (Object) this;
         Level world = player.level();
@@ -24,7 +24,6 @@ public class PlayerEntityMixin {
             return;
         }
 
-        // Cast rays from player and detect entities
         RaycastingHelper.castBouncingRaysAndDetectSFX(world, player);
         RaycastingHelper.playQueuedObjects(++TICKS_SINCE_WORLD);
     }
